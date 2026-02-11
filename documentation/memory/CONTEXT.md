@@ -21,7 +21,7 @@
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** ✅ Deploy + Service Worker Fix завершён
+**ТЕКУЩАЯ ЗАДАЧА:** ✅ Universal Relative Paths + Deployment Docs завершён
 
 **Выполнено:**
 - ✅ `vite.config.ts` обновлён: `base: '/ArcadeQuiz/'` для production
