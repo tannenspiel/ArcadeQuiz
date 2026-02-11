@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mysterious Portals</title>
+    <meta name="description"
+        content="Mysterious Portals — бесплатная браузерная игра-викторина в жанре arcade puzzle. Собирай монеты и ключи, отвечай на вопросы о природе и географии, активируй порталы и проходи уровни! Игра на Phaser 3 с более чем 70 вопросами.">
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a202c">
+    <!-- Отключаем запрос favicon для предотвращения 404 ошибок -->
+    <link rel="icon" href="data:,">
+    <!-- Google Fonts: Nunito -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        /* ✅ Критично для пиксель-арта: принудительная пикселизация Canvas */
+        canvas {
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        /* Глобальные настройки для текста, чтобы отключить сглаживание */
+        /* Применяется ко всему, но canvas правило выше имеет приоритет для canvas */
+        body {
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: grayscale;
+            font-smooth: never;
+            image-rendering: pixelated;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            position: fixed;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+            background: #000;
+            /* ✅ Черный фон для совпадения с Phaser */
+            touch-action: none;
+        }
+
+        #root {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #000;
+            /* ✅ Черный фон для совпадения с Phaser */
+            /* ✅ Убрали display: flex - Phaser сам центрирует canvas через autoCenter: CENTER_BOTH */
+            /* Flexbox может конфликтовать с Phaser центрированием при повороте экрана */
+        }
+
+        /* Для мобильных устройств используем visualViewport */
+        @supports (height: 100dvh) {
+            #game-container {
+                height: 100dvh;
+                width: 100dvw;
+            }
+        }
+    </style>
+    <script>
+        // Фиксация размера viewport с учетом фулскрин режима
+        // Если не фулскрин - высота на 8% меньше, если фулскрин - полная высота
+        (function () {
+            function isFullscreen() {
+                return !!(
+                    document.fullscreenElement ||
+                    document.webkitFullscreenElement ||
+                    document.mozFullScreenElement ||
+                    document.msFullscreenElement
+                );
+            }
+
+            function getViewportHeight() {
+                const fullscreen = isFullscreen();
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                let height = window.innerHeight;
+
+                // Если не фулскрин и мобильное устройство - уменьшаем высоту на 8%
+                if (!fullscreen && isMobile) {
+                    height = height * 0.92; // Уменьшаем на 8%
+                }
+
+                return height;
+            }
+
+            function setViewportHeight() {
+                const height = getViewportHeight();
+                const vh = height * 0.01;
+                document.documentElement.style.setProperty('--vh', vh + 'px');
+            }
+
+            // Устанавливаем размер при загрузке
+            setViewportHeight();
+
+            // Обновляем при изменении размера (но не слишком часто)
+            let resizeTimeout;
+            window.addEventListener('resize', function () {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(setViewportHeight, 100);
+            });
+
+            // Обработчик изменения фулскрин режима
+            function handleFullscreenChange() {
+                setViewportHeight();
+            }
+
+            document.addEventListener('fullscreenchange', handleFullscreenChange);
+            document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+            document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+            document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+            // Также слушаем visualViewport если доступен
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', function () {
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(setViewportHeight, 100);
+                });
+            }
+        })();
+    </script>
+</head>
+
+<body>
+    <div id="root">
+        <!-- ✅ Static Splash Screen for immediate feedback / FCP improvement -->
+        <!-- This will be replaced by React once hydrated -->
+        <div style="
+            display: flex; 
+            width: 100%; 
+            height: 100%; 
+            background-color: #000; 
+            justify-content: center; 
+            align-items: center; 
+            flex-direction: column;
+            color: white;
+            font-family: 'Nunito', sans-serif;
+        ">
+            <div style="
+                width: 64px; 
+                height: 64px; 
+                border: 4px solid #e5e7eb; 
+                border-top-color: #06b6d4; 
+                border-radius: 50%; 
+                animation: spin 1s linear infinite;
+                margin-bottom: 16px;
+            "></div>
+            <div style="font-size: 1.25rem; font-weight: bold;">Загрузка...</div>
+            <style>
+                @keyframes spin {
+                    from {
+                        transform: rotate(0deg);
+                    }
+
+                    to {
+                        transform: rotate(360deg);
+                    }
+                }
+            </style>
+        </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        // Регистрация Service Worker'а для кэширования
+        // ⚠️ ОТКЛЮЧЕН В DEV РЕЖИМЕ - вызывает ошибки при разработке
+        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if ('serviceWorker' in navigator && !isDev) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('[SW] Service Worker registered:', registration.scope);
+
+                        // Проверка обновлений Service Worker'а
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                        // Новый Service Worker установлен, но ещё не активирован
+                                        console.log('[SW] New version available!');
+
+                                        // Показать уведомление об обновлении
+                                        if (window.showUpdateNotification) {
+                                            window.showUpdateNotification();
+                                        } else {
+                                            // Автоматическая перезагрузка (можно изменить)
+                                            console.log('[SW] Reloading to apply updates...');
+                                            window.location.reload();
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('[SW] Service Worker registration failed:', error);
+                    });
+            });
+
+            // Слушаем сообщения от Service Worker'а
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('[SW] Controller changed - new version activated!');
+                // Новый Service Worker активирован, можно перезагрузить
+                window.location.reload();
+            });
+
+            // Слушаем изменения в состоянии Service Worker'а
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                refreshing = true;
+                window.location.reload();
+            });
+        }
+    </script>
+</body>
+
+</html>

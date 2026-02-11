@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>scene.launch() Behaviour Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a202c;
+            font-family: monospace;
+        }
+        #game-container {
+            width: 800px;
+            height: 600px;
+            margin: 20px auto;
+        }
+        #info {
+            color: #e5e7eb;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #2d3748;
+        }
+        .test {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #4ade80;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>🧪 scene.launch() Behaviour Test</h1>
+
+        <div class="test">
+            <strong>Test 1: Input</strong>
+            <br>Нажмите стрелки на клавиатуре. Какая сцена получит input?
+            <br>Ожидание: MainScene (последняя запущенная)
+        </div>
+
+        <div class="test">
+            <strong>Test 2: Async create()</strong>
+            <br>Смотрите в консоль: когда начнётся MainScene.update()?
+            <br>Ожидание: НЕ раньше чем create() завершится
+        </div>
+
+        <div class="test">
+            <strong>Test 3: Double update()</strong>
+            <br>Сколько сцен получает update() одновременно?
+            <br>Ожидание: Обе сцены получают update()
+        </div>
+
+        <div class="test">
+            <strong>Test 4: Scene order</strong>
+            <br>В какой последовательности сцены создаются?
+            <br>Ожидание: TestLoadingScene → TestMainScene
+        </div>
+
+        <p style="color: #fbbf24;">
+            💡 Откройте DevTools Console для просмотра логов
+        </p>
+    </div>
+
+    <div id="game-container"></div>
+
+    <!-- Import Phaser as UMD -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+
+    <!-- Test script -->
+    <script>
+        // ============================================
+        // TestScene 1 — LoadingScene prototype
+        // ============================================
+        class TestLoadingScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestLoadingScene' });
+            }
+
+            preload() {
+                console.log('🔵 TestLoadingScene: preload()');
+
+                // Имитация загрузки ассетов
+                this.load.on('progress', (p) => {
+                    console.log(`🔵 Loading progress: ${Math.round(p * 100)}%`);
+                });
+
+                this.load.once('complete', () => {
+                    console.log('🔵 TestLoadingScene: Assets loaded, launching TestMainScene...');
+
+                    setTimeout(() => {
+                        this.scene.launch('TestMainScene');
+                        console.log('🔵 TestLoadingScene: after launch()');
+                        console.log('🔵 Active scenes:', this.scene.manager.getActiveScenes().map(s => s.sceneKey));
+                    }, 500);
+                });
+
+                // Создаём текстуры для загрузки
+                const graphics = this.make.graphics();
+                graphics.fillStyle(0x00ff00);
+                graphics.fillRect(0, 0, 100, 100);
+                graphics.generateTexture('test1', 100, 100);
+
+                this.load.image('test1', 'test1');
+                this.load.start();
+            }
+
+            create() {
+                console.log('🔵 TestLoadingScene: create()');
+
+                this.add.text(100, 50, 'Loading Scene', { fontSize: '24px', color: '#00ff00' });
+                const progressText = this.add.text(100, 80, 'Progress: 0%', { fontSize: '18px', color: '#ffffff' });
+                this.progressText = progressText;
+            }
+
+            update(time, delta) {
+                if (!this.updateCount) this.updateCount = 0;
+                this.updateCount++;
+
+                if (this.updateCount <= 5) {
+                    console.log(`🔵 TestLoadingScene: update() #${this.updateCount}`);
+                }
+
+                // Проверяем input
+                const keys = this.input.keyboard.createCursorKeys();
+                if (keys.left.isDown || keys.right.isDown || keys.up.isDown || keys.down.isDown) {
+                    if (!this.inputDetected) {
+                        console.log(`🔵 TestLoadingScene: INPUT DETECTED at frame ${this.updateCount}!`);
+                        this.inputDetected = true;
+                    }
+                }
+            }
+
+            setProgress(percent, text) {
+                console.log(`🔵 TestLoadingScene: setProgress(${percent}%, ${text})`);
+                if (this.progressText) {
+                    this.progressText.setText(`${text}: ${percent}%`);
+                }
+            }
+        }
+
+        // ============================================
+        // TestScene 2 — MainScene prototype
+        // ============================================
+        class TestMainScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestMainScene' });
+            }
+
+            async create() {
+                console.log('🟢 TestMainScene: create() START');
+
+                this.add.text(100, 150, 'Main Scene', { fontSize: '24px', color: '#ff0000' });
+                const statusText = this.add.text(100, 180, 'Initializing...', { fontSize: '18px', color: '#ffffff' });
+                this.statusText = statusText;
+
+                console.log('🟢 TestMainScene: Before delay (2000ms)');
+                console.log('🟢 TestMainScene: update() should NOT be called yet');
+
+                // Имитация async операций
+                await this.delay(1000);
+                console.log('🟢 TestMainScene: After delay 1 (1000ms)');
+
+                await this.delay(1000);
+                console.log('🟢 TestMainScene: After delay 2 (1000ms)');
+
+                statusText.setText('Ready!');
+                this.isReady = true;
+
+                console.log('🟢 TestMainScene: create() END, isReady=${this.isReady}');
+                console.log('🟢 TestMainScene: Active scenes:', this.scene.manager.getActiveScenes().map(s => s.sceneKey));
+
+                // Обновляем LoadingScene
+                const loadingScene = this.scene.get('TestLoadingScene');
+                if (loadingScene && loadingScene.setProgress) {
+                    loadingScene.setProgress(100, 'Ready');
+
+                    setTimeout(() => {
+                        this.scene.stop('TestLoadingScene');
+                        console.log('🟢 TestMainScene: LoadingScene stopped');
+                        console.log('🟢 TestMainScene: Active scenes after stop:', this.scene.manager.getActiveScenes().map(s => s.sceneKey));
+                    }, 500);
+                }
+            }
+
+            update(time, delta) {
+                if (!this.updateCount) this.updateCount = 0;
+                this.updateCount++;
+
+                if (this.updateCount <= 10) {
+                    console.log(`🟢 TestMainScene: update() #${this.updateCount}, isReady=${this.isReady}`);
+                }
+
+                // ✅ НЕ обрабатываем input пока не готовы
+                if (!this.isReady) {
+                    return;
+                }
+
+                // Проверяем input
+                const keys = this.input.keyboard.createCursorKeys();
+                if (keys.left.isDown || keys.right.isDown || keys.up.isDown || keys.down.isDown) {
+                    if (!this.inputDetected) {
+                        console.log(`🟢 TestMainScene: INPUT DETECTED at frame ${this.updateCount}!`);
+                        this.inputDetected = true;
+                    }
+                }
+            }
+
+            delay(ms) {
+                return new Promise(resolve => {
+                    this.time.delayedCall(ms, resolve);
+                });
+            }
+        }
+
+        // ============================================
+        // Конфигурация игры
+        // ============================================
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            backgroundColor: '#1a202c',
+            scene: [TestLoadingScene, TestMainScene],
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { x: 0, y: 0 }
+                }
+            }
+        };
+
+        // ============================================
+        // Инициализация
+        // ============================================
+        console.log('🎮 Starting game...');
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>

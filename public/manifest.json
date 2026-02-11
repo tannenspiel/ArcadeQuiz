@@ -1,0 +1,27 @@
+{
+  "name": "Mysterious Portals",
+  "short_name": "Portals",
+  "description": "Arcade puzzle game with quizzes for school students",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#1a202c",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["games", "education"],
+  "lang": "ru"
+}

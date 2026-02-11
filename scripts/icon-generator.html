@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Icon Generator - ArcadeQuiz</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #48bb78;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+        canvas {
+            border: 2px solid #48bb78;
+            border-radius: 8px;
+            background: #2d3748;
+        }
+        .btn {
+            background: #48bb78;
+            color: #1a202c;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            background: #38a169;
+        }
+        .btn:active {
+            transform: scale(0.98);
+        }
+        .info {
+            background: #2d3748;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #9f7aea;
+        }
+        .info code {
+            background: #1a202c;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        .success {
+            background: #276749;
+            color: #f0fff4;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 PWA Icon Generator - ArcadeQuiz</h1>
+
+    <div class="info">
+        <p><strong>Инструкция:</strong></p>
+        <ol>
+            <li>Нажмите кнопку "Сгенерировать иконки"</li>
+            <li>Нажмите на каждую иконку, чтобы скачать её</li>
+            <li>Сохраните файлы в папку <code>public/</code> проекта</li>
+        </ol>
+    </div>
+
+    <div style="text-align: center; margin: 20px 0;">
+        <button class="btn" onclick="generateIcons()">🎨 Сгенерировать иконки</button>
+    </div>
+
+    <div class="container">
+        <div>
+            <h3 style="text-align: center; color: #f6e05e;">icon-192.png</h3>
+            <canvas id="canvas192" width="192" height="192"></canvas>
+            <div style="text-align: center; margin: 10px 0;">
+                <button class="btn" onclick="downloadIcon('canvas192', 'icon-192.png')">
+                    💾 Скачать 192x192
+                </button>
+            </div>
+        </div>
+        <div>
+            <h3 style="text-align: center; color: #f6e05e;">icon-512.png</h3>
+            <canvas id="canvas512" width="512" height="512"></canvas>
+            <div style="text-align: center; margin: 10px 0;">
+                <button class="btn" onclick="downloadIcon('canvas512', 'icon-512.png')">
+                    💾 Скачать 512x512
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="success" class="success"></div>
+
+    <script>
+        /**
+         * Создаёт иконку с заданным размером
+         */
+        function createIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+
+            // Фон - тёмный градиент (под тему игры)
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#1a202c');   // тёмно-синий
+            gradient.addColorStop(0.5, '#2d3748'); // синий-серый
+            gradient.addColorStop(1, '#1a202c');   // тёмно-синий
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Декоративная рамка
+            const padding = size * 0.08;
+            const borderWidth = size * 0.04;
+
+            ctx.strokeStyle = '#48bb78'; // зелёный (цвет победы)
+            ctx.lineWidth = borderWidth;
+            ctx.strokeRect(padding, padding, size - padding * 2, size - padding * 2);
+
+            // Центральный элемент - портал (овал)
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const portalWidth = size * 0.4;
+            const portalHeight = size * 0.5;
+
+            // Свечение портала
+            ctx.shadowColor = '#9f7aea'; // фиолетовый
+            ctx.shadowBlur = size * 0.08;
+
+            ctx.fillStyle = '#9f7aea';
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, portalWidth / 2, portalHeight / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Внутренность портала (чёрный)
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, portalWidth / 2.5, portalHeight / 2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Звёзды/частицы вокруг портала
+            const particleCount = size >= 512 ? 8 : 4;
+            const particleDistance = size * 0.28;
+            const particleSize = size * 0.04;
+
+            ctx.fillStyle = '#f6e05e'; // жёлтый
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (Math.PI * 2 * i) / particleCount;
+                const x = centerX + Math.cos(angle) * particleDistance;
+                const y = centerY + Math.sin(angle) * particleDistance;
+
+                ctx.beginPath();
+                ctx.arc(x, y, particleSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Текст "MP" (Mysterious Portals) для больших иконок
+            if (size >= 192) {
+                const fontSize = size * 0.2;
+                ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Тень для текста
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = size * 0.02;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = size * 0.01;
+
+                ctx.fillText('MP', centerX, centerY + size * 0.02);
+            }
+        }
+
+        /**
+         * Генерирует обе иконки
+         */
+        function generateIcons() {
+            const canvas192 = document.getElementById('canvas192');
+            const canvas512 = document.getElementById('canvas512');
+
+            createIcon(canvas192, 192);
+            createIcon(canvas512, 512);
+
+            const success = document.getElementById('success');
+            success.style.display = 'block';
+            success.innerHTML = '✅ Иконки сгенерированы! Теперь нажмите на кнопку "Скачать" под каждой иконкой.';
+        }
+
+        /**
+         * Скачивает иконку как PNG файл
+         */
+        function downloadIcon(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const dataUrl = canvas.toDataURL('image/png');
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            const success = document.getElementById('success');
+            success.style.display = 'block';
+            success.innerHTML = `✅ Файл <code>${filename}</code> скачан! Повторите для второй иконки.`;
+        }
+
+        // Автоматически сгенерировать при загрузке
+        window.onload = generateIcons;
+    </script>
+</body>
+</html>

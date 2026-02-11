@@ -1,0 +1,99 @@
+{
+  "levelNumber": 1,
+  "enemySpawn": {
+    "initialCount": {
+      "randomWalker": 1,
+      "chaser": 1,
+      "flam": 1
+    },
+    "initialSpawnDelay": 200,
+    "periodicSpawnDelay": 6000,
+    "maxEnemies": 2,
+    "enabledTypes": [
+      "randomWalker",
+      "chaser",
+      "flam"
+    ]
+  },
+  "enemySpeed": {
+    "randomWalker": 80,
+    "chaser": 30,
+    "flam": 60
+  },
+  "enemyHealth": {
+    "randomWalker": 1,
+    "chaser": 1,
+    "flam": 1
+  },
+  "enemyBehavior": {
+    "randomWalker": {
+      "chaseRadius": 0,
+      "chaseSpeed": 80,
+      "cloneDetectionRadius": 0,
+      "cloneCount": 0,
+      "cloneSpawnDelay": 300,
+      "cloneLifetime": 10000,
+      "clonesCanClone": false,
+      "showDetectionRadius": true
+    },
+    "chaser": {
+      "chaseRadius": 256,
+      "chaseSpeed": 75,
+      "cloneDetectionRadius": 0,
+      "cloneCount": 0,
+      "cloneSpawnDelay": 0,
+      "cloneLifetime": 0,
+      "clonesCanClone": false,
+      "showDetectionRadius": true
+    },
+    "flam": {
+      "chaseRadius": 0,
+      "chaseSpeed": 75,
+      "cloneDetectionRadius": 205,
+      "cloneCount": 2,
+      "cloneSpawnDelay": 300,
+      "cloneLifetime": 10000,
+      "clonesCanClone": false,
+      "showDetectionRadius": true
+    }
+  },
+  "itemSpawn": {
+    "hearts": {
+      "initial": 5,
+      "max": 8,
+      "spawnDelay": 24000
+    },
+    "keys": {
+      "initial": 10,
+      "max": 15,
+      "spawnDelay": 24000
+    },
+    "coins": {
+      "initial": 10,
+      "max": 15,
+      "spawnDelay": 10000
+    }
+  },
+  "backgroundSprites": {
+    "grass": {
+      "count": 90,
+      "density": 0.08
+    }
+  },
+  "collisionObjects": {
+    "bush": {
+      "count": 5,
+      "showCollisionDebug": false
+    },
+    "stone": {
+      "count": 5,
+      "showCollisionDebug": false
+    }
+  },
+  "levelConfig": {
+    "useTiledMap": true,
+    "tiledMapKey": "level1_json",
+    "portalSpawnRadius": 720,
+    "maxInventoryKeys": 3
+  }
+}

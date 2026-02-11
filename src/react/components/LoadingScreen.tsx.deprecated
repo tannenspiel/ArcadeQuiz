@@ -1,0 +1,66 @@
+/**
+ * LoadingScreen — компонент для отображения во время lazy загрузки Phaser
+ *
+ * Показывает минималистичный экран пока Phaser.js библиотека загружается.
+ * После этого LoadingScene покажет реальный прогресс загрузки ассетов.
+ */
+
+import React from 'react';
+
+const LoadingScreen: React.FC = () => {
+  return (
+    <div
+      className="loading-screen"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#1a202c',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'Nunito, sans-serif',
+        zIndex: 1000
+      }}
+    >
+      {/* Спиннер загрузки */}
+      <div
+        className="loading-spinner"
+        style={{
+          width: '50px',
+          height: '50px',
+          border: '3px solid #2d3748',
+          borderTop: '3px solid #4ade80',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}
+      />
+
+      {/* Текст загрузки */}
+      <p
+        style={{
+          color: '#e5e7eb',
+          marginTop: '20px',
+          fontSize: '16px',
+          fontWeight: '600',
+          margin: '20px 0 0 0'
+        }}
+      >
+        Загрузка библиотеки...
+      </p>
+
+      {/* Стили анимации */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default LoadingScreen;

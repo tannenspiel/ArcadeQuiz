@@ -1,0 +1,14 @@
+# robots.txt для Mysterious Portals
+
+User-agent: *
+Allow: /
+
+# Sitemap (если будет)
+# Sitemap: https://your-domain.com/sitemap.xml
+
+# Запрещаем индексацию временных файлов и служебных путей
+Disallow: /api/
+Disallow: /temp/
+Disallow: /.temp/
+Disallow: /documentation/
+Disallow: /node_modules/

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventBus & Timing Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a202c;
+            font-family: monospace;
+        }
+        #game-container {
+            width: 800px;
+            height: 600px;
+            margin: 20px auto;
+        }
+        #info {
+            color: #e5e7eb;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #2d3748;
+        }
+        .test {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #4ade80;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 3px solid #fbbf24;
+        }
+        pre {
+            background: #1a202c;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>🧪 EventBus & Timing Test</h1>
+
+        <div class="test">
+            <strong>Test 1: this.events между сценами</strong>
+            <br>LoadingScene подписывается на событие, MainScene emit.
+            <br>Ожидание: Работает
+        </div>
+
+        <div class="test">
+            <strong>Test 2: Глобальный EventBus (EventBus.ts)</strong>
+            <br>Использовать глобальный EventBus вместо this.events
+            <br>Ожидание: Работает
+        </div>
+
+        <div class="test">
+            <strong>Test 3: pause() для LoadingScene</strong>
+            <br>Можно ли приостановить LoadingScene.update()?
+            <br>Ожидание: pause() работает, setProgress() не работает
+        </div>
+
+        <div class="test">
+            <strong>Test 4: Timing finishLoading()</strong>
+            <br>Когда именно уничтожать LoadingScene?
+            <br>Ожидание: После первого frame MainScene
+        </div>
+
+        <div id="results"></div>
+
+        <p style="color: #fbbf24;">
+            💡 Откройте DevTools Console для просмотра логов
+        </p>
+    </div>
+
+    <div id="game-container"></div>
+
+    <!-- Import Phaser -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+
+    <!-- Test script -->
+    <script>
+        // ============================================
+        // Глобальный EventBus (простая реализация)
+        // ============================================
+        class GlobalEventBus {
+            constructor() {
+                this.listeners = {};
+            }
+
+            on(event, callback) {
+                if (!this.listeners[event]) {
+                    this.listeners[event] = [];
+                }
+                this.listeners[event].push(callback);
+                console.log(`📡 EventBus: Subscribed to "${event}"`);
+            }
+
+            emit(event, data) {
+                console.log(`📡 EventBus: Emitting "${event}"`, data);
+                if (this.listeners[event]) {
+                    this.listeners[event].forEach(cb => cb(data));
+                }
+            }
+
+            off(event, callback) {
+                if (this.listeners[event]) {
+                    this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+                }
+            }
+        }
+
+        const EventBus = new GlobalEventBus();
+        window.__EventBus = EventBus;  // Для отладки
+
+        // ============================================
+        // TestLoadingScene
+        // ============================================
+        class TestLoadingScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestLoadingScene' });
+            }
+
+            preload() {
+                console.log('🔵 TestLoadingScene: preload()');
+
+                this.load.on('progress', (p) => {
+                    const progress = Math.round(p * 50); // 0-50%
+                    console.log(`🔵 LoadingScene: Assets progress ${progress}%`);
+                    EventBus.emit('loading-progress', {
+                        percent: progress,
+                        text: `Загрузка ассетов... ${progress}%`
+                    });
+                });
+
+                this.load.once('complete', async () => {
+                    console.log('🔵 TestLoadingScene: Assets loaded');
+
+                    // Имитация работы
+                    await new Promise(r => this.time.delayedCall(500, r));
+
+                    // Test 3: pause() vs setProgress()
+                    console.log('🔵 TestLoadingScene: Launching MainScene...');
+                    this.scene.launch('TestMainScene');
+
+                    // Test 3A: Пробуем pause()
+                    // this.scene.pause('TestLoadingScene');
+                    console.log('🔵 TestLoadingScene: Active scenes:',
+                        this.scene.manager.scenes.map(s => s.sceneKey));
+                });
+
+                // Создаём текстуру для загрузки
+                const graphics = this.make.graphics();
+                graphics.fillStyle(0x00ff00);
+                graphics.fillRect(0, 0, 100, 100);
+                graphics.generateTexture('test1', 100, 100);
+                this.load.image('test1', 'test1');
+                this.load.start();
+            }
+
+            create() {
+                console.log('🔵 TestLoadingScene: create()');
+
+                // UI
+                this.add.text(100, 50, 'Loading Scene', { fontSize: '24px', color: '#00ff00' });
+                this.progressText = this.add.text(100, 80, 'Progress: 0%', { fontSize: '18px', color: '#ffffff' });
+                this.statusText = this.add.text(100, 110, 'Status: Loading assets...', { fontSize: '16px', color: '#cccccc' });
+
+                // Подписываемся на глобальный EventBus
+                EventBus.on('loading-progress', (data) => {
+                    console.log(`🔵 TestLoadingScene: Received progress event`, data);
+                    this.setProgress(data.percent, data.text);
+                });
+
+                // Подписываемся на управление pause/resume
+                EventBus.on('pause-loading', () => {
+                    console.log('🔵 TestLoadingScene: Paused (update не будет вызываться)');
+                    this.scene.pause();
+                });
+
+                EventBus.on('resume-loading', () => {
+                    console.log('🔵 TestLoadingScene: Resumed (update будет вызываться)');
+                    this.scene.resume();
+                });
+            }
+
+            setProgress(percent, text) {
+                console.log(`🔵 TestLoadingScene: setProgress(${percent}%, ${text})`);
+                if (this.progressText) {
+                    this.progressText.setText(`Progress: ${percent}%`);
+                }
+                if (this.statusText) {
+                    this.statusText.setText(`Status: ${text}`);
+                }
+            }
+
+            update(time, delta) {
+                // Минимальная логика для теста pause()
+                if (!this.updateCount) this.updateCount = 0;
+                this.updateCount++;
+
+                if (this.updateCount <= 3) {
+                    console.log(`🔵 TestLoadingScene: update() #${this.updateCount}`);
+                }
+            }
+        }
+
+        // ============================================
+        // TestMainScene
+        // ============================================
+        class TestMainScene extends Phaser.Scene {
+            constructor() {
+                super({ key: 'TestMainScene' });
+                this.isReady = false;
+            }
+
+            async create() {
+                console.log('🟢 TestMainScene: create() START');
+
+                // UI
+                this.add.text(100, 200, 'Main Scene', { fontSize: '24px', color: '#ff0000' });
+                this.statusText = this.add.text(100, 230, 'Initializing...', { fontSize: '18px', color: '#ffffff' });
+
+                // Подписываемся на глобальный EventBus
+                EventBus.on('loading-progress', (data) => {
+                    console.log(`🟢 TestMainScene: Received progress event`, data);
+                    // MainScene тоже может показывать прогресс (для теста)
+                    this.statusText.setText(`Main sees: ${data.percent}% - ${data.text}`);
+                });
+
+                // ========================================
+                // Test 1: this.events между сценами
+                // ========================================
+                console.log('--- Test 1: this.events ---');
+
+                // Пробуем подписаться на событие MainScene
+                this.events.on('test-event', (data) => {
+                    console.log('🟢 TestMainScene: Received test-event', data);
+                });
+
+                // Emit на самого себя
+                this.events.emit('test-event', { from: 'MainScene', data: 'test' });
+                console.log('🟢 TestMainScene: Emitted test-event');
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                // ========================================
+                // Test 1B: EventBus из LoadingScene
+                // ========================================
+                console.log('--- Test 1B: EventBus from LoadingScene ---');
+
+                EventBus.emit('mainScene-test', { from: 'MainScene', phase: 'create()' });
+                console.log('🟢 TestMainScene: Emitted mainScene-test');
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                // ========================================
+                // Имитация инициализации с progress
+                // ========================================
+                console.log('--- MainScene Initialization ---');
+
+                const loadingScene = this.scene.get('TestLoadingScene');
+                console.log('🟢 TestMainScene: LoadingScene accessible?', !!loadingScene);
+
+                // Test 2: Direct access vs EventBus
+                console.log('--- Test 2: Direct vs EventBus ---');
+
+                // 2A: Прямой доступ
+                if (loadingScene) {
+                    console.log('🟢 TestMainScene: Trying direct call to setProgress()...');
+                    try {
+                        loadingScene.setProgress(50, 'Direct call 50%');
+                        console.log('🟢 TestMainScene: Direct call SUCCESS ✅');
+                    } catch (e) {
+                        console.error('🟢 TestMainScene: Direct call FAILED ❌', e);
+                    }
+                }
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                // 2B: Через EventBus
+                console.log('🟢 TestMainScene: Trying EventBus...');
+                EventBus.emit('loading-progress', { percent: 55, text: 'EventBus 55%' });
+                console.log('🟢 TestMainScene: EventBus emitted');
+
+                // ========================================
+                // Test 3: pause() для LoadingScene
+                // ========================================
+                console.log('--- Test 3: pause() LoadingScene ---');
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                console.log('🟢 TestMainScene: Pausing LoadingScene...');
+                EventBus.emit('pause-loading');
+                console.log('🟢 TestMainScene: LoadingScene paused');
+
+                await new Promise(r => this.time.delayedCall(1000, r));
+
+                console.log('🟢 TestMainScene: Resuming LoadingScene...');
+                EventBus.emit('resume-loading');
+                console.log('🟢 TestMainScene: LoadingScene resumed');
+
+                // ========================================
+                // Test 4: Timing finishLoading()
+                // ========================================
+                console.log('--- Test 4: Timing finishLoading() ---');
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                this.isReady = true;
+                console.log('🟢 TestMainScene: Initialization complete, isReady=true');
+
+                // Test 4A: finishLoading() сразу
+                console.log('🟢 TestMainScene: Calling finishLoading() immediately...');
+                EventBus.emit('finish-loading');
+
+                await new Promise(r => this.time.delayedCall(500, r));
+
+                // Проверяем результат
+                console.log('🟢 TestMainScene: create() END');
+                console.log('🟢 TestMainScene: Active scenes after finish:',
+                    this.scene.manager.scenes.map(s => s.sceneKey));
+            }
+
+            update(time, delta) {
+                if (!this.updateCount) this.updateCount = 0;
+                this.updateCount++;
+
+                // Первые несколько update()
+                if (this.updateCount <= 5) {
+                    console.log(`🟢 TestMainScene: update() #${this.updateCount}, isReady=${this.isReady}`);
+                }
+
+                // Test 4B: Проверяем когда MainScene рендерит первый раз
+                if (!this.hasRendered && this.isReady) {
+                    console.log(`🟢 TestMainScene: First update after ready, frame=${this.updateCount}`);
+                    this.hasRendered = true;
+                }
+            }
+
+            delay(ms) {
+                return new Promise(resolve => {
+                    this.time.delayedCall(ms, resolve);
+                });
+            }
+        }
+
+        // ============================================
+        // Конфигурация игры
+        // ============================================
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            backgroundColor: '#1a202c',
+            scene: [TestLoadingScene, TestMainScene],
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { x: 0, y: 0 }
+                }
+            }
+        };
+
+        // ============================================
+        // Инициализация
+        // ============================================
+        console.log('🎮 Starting game...');
+        const game = new Phaser.Game(config);
+
+        // ============================================
+        // Функция для анализа результатов
+        // ============================================
+        function analyzeResults() {
+            setTimeout(() => {
+                const results = [];
+
+                // Собираем логи
+                const logs = [];
+                const originalLog = console.log;
+                console.log = (...args) => {
+                    logs.push(args.join(' '));
+                    originalLog(...args);
+                };
+
+                // Через 10 секунд анализируем
+                setTimeout(() => {
+                    console.log = originalLog;
+
+                    // Анализ
+                    const hasEventBusBetweenScenes = logs.some(l => l.includes('Received progress event'));
+                    const hasGlobalEventBus = logs.some(l => l.includes('EventBus: Emitting'));
+                    const hasPauseResume = logs.some(l => l.includes('Paused') || l.includes('Resumed'));
+                    const hasDirectAccess = logs.some(l => l.includes('Direct call'));
+
+                    const resultsDiv = document.getElementById('results');
+                    resultsDiv.innerHTML = `
+                        <h2>📊 Результаты теста</h2>
+                        <div class="result ${hasEventBusBetweenScenes ? '✅' : '❌'}">
+                            Test 1: this.events между сценами: ${hasEventBusBetweenScenes ? '✅ WORKS' : '❌ FAIL'}
+                        </div>
+                        <div class="result ${hasGlobalEventBus ? '✅' : '❌'}">
+                            Test 2: Глобальный EventBus: ${hasGlobalEventBus ? '✅ WORKS' : '❌ FAIL'}
+                        </div>
+                        <div class="result ${hasPauseResume ? '✅' : '❌'}">
+                            Test 3: pause() работает: ${hasPauseResume ? '✅ WORKS' : '❌ FAIL'}
+                        </div>
+                        <div class="result ${hasDirectAccess ? '✅' : '❌'}">
+                            Direct setProgress: ${hasDirectAccess ? '✅ WORKS' : '❌ FAIL'}
+                        </div>
+                        <pre>
+                            Логи (последние 50 строк):
+                            ${logs.slice(-50).join('\n')}
+                        </pre>
+                    `;
+                }, 10000);
+            }, 1000);
+        }
+
+        // Запускаем анализ
+        analyzeResults();
+    </script>
+</body>
+</html>
