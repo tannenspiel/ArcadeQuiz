@@ -25,11 +25,11 @@
 
 **Выполнено:**
 - ✅ `vite.config.ts` обновлён: `base: '/ArcadeQuiz/'` для production
-- ✅ Собрана продакшн версия в `dist/`
-- ✅ Preview проверен на `http://localhost:4173/ArcadeQuiz/`
-- ✅ Создан `.github/workflows/deploy.yml`
-- ✅ Создан `.gitignore`
-- ✅ Git инициализирован, первый коммит сделан
+- ✅ Собрана продакшн версия в `dist/` (с gzip-сжатием)
+- ✅ Preview протестирован на `http://localhost:4174/ArcadeQuiz/`
+- ✅ Создан `.github/workflows/deploy.yml` (GitHub Pages deployment)
+- ✅ Создан `.gitignore` (node_modules, dist, .env, .DS_Store, .temp)
+- ✅ Git инициализирован, 3 коммита (f04051b, 911ba00, 022b536)
 
 ---
 
