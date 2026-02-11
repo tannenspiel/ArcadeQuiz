@@ -35,6 +35,12 @@
 - Создан `.gitignore` (node_modules, dist, .env, .DS_Store, .temp)
 - `git init` выполнен
 - Первый коммит: `022b536` (542 файла, 122860 строк)
+- Второй коммит: `911ba00` (обновление памяти)
+
+**6. Протестирован preview:**
+- Production сборка загружается корректно
+- Base path `/ArcadeQuiz/` работает правильно (manifest.css, assets)
+- Проверено через `curl` и браузер
 
 ---
 
