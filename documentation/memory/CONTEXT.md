@@ -25,11 +25,12 @@
 
 **Выполнено:**
 - ✅ `vite.config.ts` обновлён: `base: '/ArcadeQuiz/'` для production
+- ✅ `src/config/gameConfig.ts`: исправлен `ASSETS_BASE_PATH` с `import.meta.env.BASE_URL`
 - ✅ Собрана продакшн версия в `dist/` (с gzip-сжатием)
-- ✅ Preview протестирован на `http://localhost:4174/ArcadeQuiz/`
+- ✅ Preview протестирован на `http://localhost:4175/ArcadeQuiz/` — **игра загружается!**
 - ✅ Создан `.github/workflows/deploy.yml` (GitHub Pages deployment)
 - ✅ Создан `.gitignore` (node_modules, dist, .env, .DS_Store, .temp)
-- ✅ Git инициализирован, 3 коммита (f04051b, 911ba00, 022b536)
+- ✅ Git инициализирован, 3 коммита
 
 ---
 

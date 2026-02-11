@@ -42,6 +42,14 @@
 - Base path `/ArcadeQuiz/` работает правильно (manifest.css, assets)
 - Проверено через `curl` и браузер
 
+**7. Исплен критический баг с путями к ассетам:**
+- **Проблема:** `ASSETS_BASE_PATH = '/assets/Game_01'` не учитывал base path
+- В production Phaser загружал `/assets/...` вместо `/ArcadeQuiz/assets/...`
+- **Решение:** `${import.meta.env.BASE_URL}assets/${CURRENT_THEME}`
+- `BASE_URL` автоматически подставляет `/` или `/ArcadeQuiz/` в зависимости от режима
+- Файл: `src/config/gameConfig.ts`
+- Пересобран проект и протестирован — игра загружается корректно
+
 ---
 
 ## Archived Entries

@@ -8,8 +8,9 @@ import * as DebugFlags from './debugConfig';
 // Текущая тема игры (можно менять через переменную окружения)
 export const CURRENT_THEME = import.meta.env.VITE_CURRENT_THEME || 'Game_01';
 
-// ✅ PROD FIT: Ассеты теперь лежат в public/assets, что работает и в dev, и в prod
-export const ASSETS_BASE_PATH = `/assets/${CURRENT_THEME}`;
+// ✅ PROD FIT: Ассеты теперь лежат в dist/assets, учитываем base path для GitHub Pages
+// Vite автоматически подставляет BASE_URL: '/' для dev, '/ArcadeQuiz/' для prod
+export const ASSETS_BASE_PATH = `${import.meta.env.BASE_URL}assets/${CURRENT_THEME}`;
 
 // A/B тестирование для фидбэков в мини-вопросах
 export const AB_TESTING = {
