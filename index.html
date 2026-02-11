@@ -195,7 +195,7 @@
         const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         if ('serviceWorker' in navigator && !isDev) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('./sw.js')
                     .then((registration) => {
                         console.log('[SW] Service Worker registered:', registration.scope);
 

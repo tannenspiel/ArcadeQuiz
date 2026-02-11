@@ -13,11 +13,10 @@ const CACHE_VERSION = '2026-02-11-22acb50c';
 const CACHE_NAME = `portals-v${CACHE_VERSION}`;
 
 // Ресурсы для кэширования при первом запуске
+// ✅ Используем относительные пути для работы с GitHub Pages (/ArcadeQuiz/)
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
-  '/assets/main.js',      // Будет заменено Vite при сборке
-  '/assets/main.css',     // Будет заменено Vite при сборке
+  './',
+  './index.html',
   // ✅ Phaser и другие lazy chunks кэшируются динамически через fetch handler
   // (phaser-[hash].js, react-[hash].js, vendor-[hash].js)
   // Ассеты будут кэшироваться динамически по мере загрузки
