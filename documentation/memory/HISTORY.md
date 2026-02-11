@@ -50,6 +50,18 @@
 - Файл: `src/config/gameConfig.ts`
 - Пересобран проект и протестирован — игра загружается корректно
 
+**8. Деплой на GitHub Pages:**
+- Проект успешно задеплоен: `https://tannenspiel.github.io/ArcadeQuiz/`
+- CI/CD через GitHub Actions работает (зелёный билд)
+
+**9. Исплен Service Worker для GitHub Pages:**
+- **Проблема:** SW регистрировался как `/sw.js` → 404 на GitHub Pages
+- **Решение 1:** `index.html` — изменён `'./sw.js'` (относительный путь)
+- **Решение 2:** `public/sw.js` — `PRECACHE_URLS` с относительными путями
+- Файлы: `index.html`, `public/sw.js`
+- Коммит: `5a0fcf8`
+- SW теперь корректно регистрируется по `/ArcadeQuiz/sw.js`
+
 ---
 
 ## Archived Entries
