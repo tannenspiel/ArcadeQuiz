@@ -13,8 +13,9 @@ export default defineConfig(({ command, mode }) => {
     const isProd = mode === 'production';
 
     return {
-        // ✅ PROD: Base path for GitHub Pages deployment (repository name)
-        base: isProd ? '/ArcadeQuiz/' : '/',
+        // ✅ PROD: Relative paths for portable dist folder
+        // Works in any directory: root, subfolder, or any path
+        base: './',
         plugins: [
             react(),
             // ✅ Gzip compression for production build to limit FCP/LCP impact
