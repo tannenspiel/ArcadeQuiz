@@ -24,6 +24,7 @@ import { logger } from '../../utils/Logger';
 import { EVENTS, BASE_SCALE, KEYS, DEPTHS } from '../../constants/gameConstants';
 import { BUTTON_HOVER_GOLD, BUTTON_PRESSED_GOLD } from '../../constants/textStyles';
 import { QuizStatements } from '../../systems/QuizManager';
+import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
 
 // ==================== КОНСТАНТЫ ДЛЯ 9-SLICE БАББЛОВ ====================
 // ui_coin_bubble использует frameWidth=10, frameHeight=10
@@ -165,20 +166,22 @@ export class CoinBubbleQuiz {
         'CoinBubbleQuiz' // Имя модального окна для логов
       );
 
-      // ✅ Derived Bubble Dimensions (УВЕЛИЧЕНЫ)
-      // Width: 95% of modal width (было 90%)
-      // Height: 1/5 of modal height (было 1/7)
-      let bubbleBtnWidth = modalSize.width * 0.95;
-      let bubbleBtnHeight = modalSize.height / 5; // Было /7, теперь больше
+      // ✅ Derived Bubble Dimensions (УВЕЛИЧЕНЫ - ДИНАМИЧЕСКИ)
+      // Width: 95% of modal width
+      // Height: 20% of modal height (было 1/5, теперь 1/5 = 20%)
+      // Используем snapToGridDouble для выравнивания к сетке и соблюдения MIN_BUBBLE_SIZE
+
+      let bubbleBtnWidth = snapToGridDouble(modalSize.width * 0.95);
+      let bubbleBtnHeight = snapToGridDouble(modalSize.height * 0.2);
 
       // ✅ ЗАЩИТА ОТ ПЕРЕСЕЧЕНИЯ НАРЕЗОК 9-SLICE
       // Проверяем, что размер баббла не меньше минимального (120px = 3 × tileSize)
-      // Если меньше, выводим предупреждение и используем минимальный размер
+      // Используем snapToGridDouble для выравнивания и соблюдения MIN_BUBBLE_SIZE
       if (bubbleBtnWidth < MIN_BUBBLE_SIZE || bubbleBtnHeight < MIN_BUBBLE_SIZE) {
         logger.warn('COIN_BUBBLE_QUIZ', `Bubble size too small for 9-slice! ` +
           `width=${bubbleBtnWidth.toFixed(1)} (min=${MIN_BUBBLE_SIZE}), ` +
           `height=${bubbleBtnHeight.toFixed(1)} (min=${MIN_BUBBLE_SIZE}). ` +
-          `Using minimum size to prevent slice overlap.`);
+          `Using snapToGridDouble to ensure grid alignment.`);
         bubbleBtnWidth = Math.max(bubbleBtnWidth, MIN_BUBBLE_SIZE);
         bubbleBtnHeight = Math.max(bubbleBtnHeight, MIN_BUBBLE_SIZE);
       }
