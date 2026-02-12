@@ -1,8 +1,8 @@
 # Current Context - Snapshot
 
-**Last Updated:** 2026-02-12 (session)
+**Last Updated:** 2026-02-13 (session)
 **Branch:** `master` (first commit: 022b536)
-**Status:** Loading Screen UI Improvements ✅ COMPLETED
+**Status:** Modal Windows Improvements 🔄 IN PROGRESS
 
 ---
 
@@ -12,7 +12,7 @@
 |---------|-------|
 | **Port** | `3000` (dev), `4173` (preview) |
 | **Start Command** | `npm run dev` / `npm run build && npm run preview` |
-| **Server Status** | ✅ RUNNING (background) |
+| **Server Status** | ✅ RUNNING (background, task: b7834ca) |
 | **Browser** | Chrome (chrome-devtools-mcp) |
 | **Tests** | ✅ 1843/1843 passing |
 | **Git** | ✅ Initialized (first commit: 022b536) |
@@ -21,7 +21,27 @@
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** ✅ Loading Screen UI Improvements завершена
+**ТЕКУЩАЯ ЗАДАЧА:** Modal Windows Improvements (анализ + план)
+
+**Что сделано:**
+- ✅ ui-architect анализ завершён (отчёт в Plans/)
+- ✅ Ротация HISTORY.md выполнена
+- ✅ Детальный план PLAN.md создан с учётом зависимостей
+- ✅ Критические ограничения UI-Layout задокументированы
+
+**План работ (7 шагов):**
+1. Удалить неиспользуемые React компоненты
+2. Создать ModalPositioningHelper (вынести общие функции)
+3. Рефакторинг PortalModal
+4. Рефакторинг GameOverModal
+5. Исправление CoinBubbleQuiz (динамические размеры)
+6. Флаг отладки для логов кнопок
+7. Обновление документации
+
+**⚠️ КРИТИЧЕСКИЕ ОГРАНЕЧЕНИЯ:**
+- НЕ менять FontSizeCalculator.ts
+- НЕ менять ModalSizeCalculator.ts
+- НЕ менять KeyQuestionModal.ts (особенно createUI())
 
 **Выполнено:**
 - ✅ Добавлены правила игры на экран загрузки (над заголовком)
