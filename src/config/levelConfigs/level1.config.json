@@ -95,6 +95,5 @@
     "tiledMapKey": "level1_json",
     "portalSpawnRadius": 720,
     "maxInventoryKeys": 3
-  },
-  "_versionComment": "test-button-v2"
+  }
 }

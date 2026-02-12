@@ -9,7 +9,7 @@
 
 // Версия кэша (автоматически обновляется скриптом generate-cache-version.js)
 // Формат: YYYY-MM-DD-Hash (где Hash - первые 8 символов от хэша конфиг файлов)
-const CACHE_VERSION = '2026-02-12-57cbb8d9';
+const CACHE_VERSION = '2026-02-12-e21ab915';
 const CACHE_NAME = `portals-v${CACHE_VERSION}`;
 
 // Ресурсы для кэширования при первом запуске
