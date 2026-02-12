@@ -21,22 +21,29 @@
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** Modal Windows Improvements (анализ + план)
+**ТЕКУЩАЯ ЗАДАЧА:** Modal Windows Improvements (Шаг 1 ✅ ЗАВЕРШЁН)
 
 **Что сделано:**
 - ✅ ui-architect анализ завершён (отчёт в Plans/)
 - ✅ Ротация HISTORY.md выполнена
 - ✅ Детальный план PLAN.md создан с учётом зависимостей
 - ✅ Критические ограничения UI-Layout задокументированы
+- ✅ **Шаг 1:** Удалены 7 неиспользуемых React файлов
+  - Тесты: 1802/1802 passing (было 1843)
 
 **План работ (7 шагов):**
-1. Удалить неиспользуемые React компоненты
-2. Создать ModalPositioningHelper (вынести общие функции)
-3. Рефакторинг PortalModal
-4. Рефакторинг GameOverModal
-5. Исправление CoinBubbleQuiz (динамические размеры)
-6. Флаг отладки для логов кнопок
-7. Обновление документации
+1. ✅ Удалить неиспользуемые React компоненты — ЗАВЕРШЕНО
+2. ⏳ Создать ModalPositioningHelper (вынести общие функции)
+3. ⏳ Рефакторинг PortalModal
+4. ⏳ Рефакторинг GameOverModal
+5. ⏳ Исправление CoinBubbleQuiz (динамические размеры)
+6. ⏳ Флаг отладки для логов кнопок
+7. ⏳ Обновление документации
+
+**Коммиты:**
+- `4c5d73e` docs: modal windows analysis and planning
+- `e608cd2` restore: pre-cleanup point before removing React modals (RESTORE POINT)
+- `61272f4` refactor: remove unused React modal components
 
 **⚠️ КРИТИЧЕСКИЕ ОГРАНЕЧЕНИЯ:**
 - НЕ менять FontSizeCalculator.ts

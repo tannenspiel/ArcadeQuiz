@@ -17,9 +17,9 @@
 - ✅ Создание структуры плана в `documentation/Plans/2026-02-13_modal-windows-improvements/`
 - ✅ Создание детального плана `PLAN.md`
 - ✅ Создание отчёта `ANALYSIS_REPORT.md`
+- ✅ **Шаг 1 ЗАВЕРШЁН:** Удалены 7 неиспользуемых React файлов
 
 **В очереди:**
-- ⏳ Шаг 1: Удалить неиспользуемые React компоненты
 - ⏳ Шаг 2: Создать ModalPositioningHelper
 - ⏳ Шаг 3-5: Рефакторинг модальных окон
 - ⏳ Шаг 6: Добавить флаг отладки
@@ -31,7 +31,7 @@
 
 | Шаг | Задача | Статус | Изменения | Затронутые файлы |
 |------|---------|----------|------------|-------------------|
-| 1 | Удалить React компоненты | TODO | - | `QuizModal.tsx`, `GameOverModal.tsx`, `UIOverlay.tsx` + тесты |
+| 1 | Удалить React компоненты | ✅ DONE | Удалены 7 файлов | 3 компонента + 3 теста + 1 deprecated |
 | 2 | Создать ModalPositioningHelper | TODO | - | `ModalPositioningHelper.ts` (новый) |
 | 3 | Рефакторинг PortalModal | TODO | - | `PortalModal.ts` |
 | 4 | Рефакторинг GameOverModal | TODO | - | `GameOverModal.ts` |
