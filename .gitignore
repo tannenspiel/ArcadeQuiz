@@ -39,3 +39,11 @@ node_modules/.vite/
 # Claude Code temp files
 tmpclaude-*
 nul
+
+# Claude Code config (local only)
+.claude/
+.agent/
+myUtils/
+
+# Local scripts
+ArcadeQuiz_PS.bat
