@@ -33,7 +33,7 @@
 
 **План работ (7 шагов):**
 1. ✅ Удалить неиспользуемые React компоненты — ЗАВЕРШЕНО
-2. ⏳ Создать ModalPositioningHelper (вынести общие функции)
+2. ✅ Создать ModalPositioningHelper — ЗАВЕРШЕНО (242 строки, 19 тестов)
 3. ⏳ Рефакторинг PortalModal
 4. ⏳ Рефакторинг GameOverModal
 5. ⏳ Исправление CoinBubbleQuiz (динамические размеры)
@@ -44,6 +44,7 @@
 - `4c5d73e` docs: modal windows analysis and planning
 - `e608cd2` restore: pre-cleanup point before removing React modals (RESTORE POINT)
 - `61272f4` refactor: remove unused React modal components
+- `f626085` refactor: create ModalPositioningHelper for Grid Snapping utilities
 
 **⚠️ КРИТИЧЕСКИЕ ОГРАНЕЧЕНИЯ:**
 - НЕ менять FontSizeCalculator.ts

@@ -36,6 +36,7 @@ import { NineSliceBackground } from './NineSliceBackground';
 import { logger } from '../../utils/Logger';
 import { DEBUG_QUIZ_PORTAL } from '../../config/debugConfig';
 import { BASE_SCALE } from '../../constants/gameConstants';
+import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
 
 export interface PortalModalConfig {
   portalConfig: PortalConfig;
@@ -143,10 +144,8 @@ export class PortalModal {
       'PortalModal'   // Имя модального окна для логов
     );
 
-    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (как в KeyQuestionModal)
+    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (используем ModalPositioningHelper)
     // Чтобы избежать дробных пикселей при BASE_SCALE=4, координаты и размеры должны быть кратны 4 (или 8 для центрирования)
-    const snapToGrid = (val: number) => Math.round(val / BASE_SCALE) * BASE_SCALE;
-    const snapToGridDouble = (val: number) => Math.round(val / (BASE_SCALE * 2)) * (BASE_SCALE * 2);
 
     const modalWidth = snapToGridDouble(modalSize.width);
     const modalHeight = snapToGridDouble(modalSize.height);
