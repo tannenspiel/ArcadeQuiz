@@ -1,8 +1,8 @@
 # Current Context - Snapshot
 
-**Last Updated:** 2026-02-11 (session)
+**Last Updated:** 2026-02-12 (session)
 **Branch:** `master` (first commit: 022b536)
-**Status:** Documentation Audit ✅ COMPLETED
+**Status:** OracleCollisionHandler Fix + UI Layout Docs ✅ COMPLETED
 
 ---
 
@@ -21,7 +21,14 @@
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** ✅ Полная ревизия документации (Variant 3) завершена
+**ТЕКУЩАЯ ЗАДАЧА:** ✅ OracleCollisionHandler Fix + UI Layout Documentation завершена
+
+**Выполнено:**
+- ✅ Исправлен `TypeError: this.handleKeyPhase is not a function` в OracleCollisionHandler
+- ✅ Добавлен метод `handleKeyPhase()` с логикой депозита ключей
+- ✅ Добавлена защитная проверка `typeof` перед вызовом метода
+- ✅ Build и preview протестированы — всё работает
+- ✅ Задокументированы критические правила по работе с UI-лейаутом модальных окон (см. HISTORY.md)
 
 **Выполнено (Documentation Audit):**
 - ✅ ARCHITECTURE.md v3.1: Исправлены значения наград (соответствуют scoreConstants.ts)
@@ -48,6 +55,7 @@
 | 2026-02-10 | Production Release Preparation | ✅ COMPLETED |
 | 2026-02-10 | Cleanup: Remove auto-history scripts | ✅ COMPLETED |
 | 2026-02-10 | Sound Button State Persistence | ✅ COMPLETED |
+| 2026-02-12 | OracleCollisionHandler Fix + UI Layout Docs | ✅ COMPLETED |
 
 ---
 

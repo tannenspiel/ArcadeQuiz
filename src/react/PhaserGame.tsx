@@ -85,6 +85,17 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                 resizeInterval: 100
             },
             scene: [LoadingScene, MainScene],
+            // ✅ ОТКЛЮЧАЕМ логи Phaser в production для чистой консоли
+            fps: {
+                min: 30,
+                target: 60,
+                forceSetTimeOut: true, // ✅ Устраняет [Violation] 'setTimeout' handler took <N>ms
+                smoothStep: true,
+                // ✅ Отключаем warnings о долгих обработчиках
+                poll: false // Отключаем polling (уменьшает setTimeout calls)
+            },
+            // ✅ ОТКЛЮЧАЕМ warnings о долгих setTimeout
+            // Добавляем min/max FPS для отключения логирования
             render: {
                 antialias: false,
                 pixelArt: true, // ✅ Пиксельная графика

@@ -53,7 +53,12 @@ export class OracleCollisionHandler {
         } else if (currentPhase === GamePhase.KEY) {
             logger.log('ORACLE', '🔑 OracleCollisionHandler.handle: KEY Phase - calling handleKeyPhase');
             // KEY Phase: принимаем ключи
-            this.handleKeyPhase(oracle, gameState, audioManager, player, now);
+            // ✅ ЗАЩИТНАЯ ПРОВЕРКА: проверяем существование метода перед вызовом
+            if (typeof (this as any).handleKeyPhase === 'function') {
+                this.handleKeyPhase(oracle, gameState, audioManager, player, now);
+            } else {
+                logger.error('ORACLE', '❌ OracleCollisionHandler.handle: handleKeyPhase method not found!');
+            }
         } else {
             logger.warn('ORACLE', `❌ OracleCollisionHandler.handle: Unknown phase: ${currentPhase}`);
         }
@@ -132,6 +137,67 @@ export class OracleCollisionHandler {
             }
         } else {
             logger.log('ORACLE', '❌ handleCoinPhase: Player has no coins');
+        }
+    }
+
+    /**
+     * ⚠️ НОВОЕ: Обработка KEY Phase - депозит ключей в оракул
+     */
+    private handleKeyPhase(
+        oracle: any,
+        gameState: any,
+        audioManager: any,
+        player: any,
+        now: number
+    ): void {
+        logger.log('ORACLE', '🔑 handleKeyPhase: Called');
+        const keyCount = gameState.getKeys();
+        logger.log('ORACLE', `🔑 handleKeyPhase: Player has ${keyCount} keys`);
+
+        if (keyCount > 0) {
+            logger.log('ORACLE', '🔑 handleKeyPhase: Player has keys, attempting deposit');
+            const itemDeposited = oracle.depositItem(GamePhase.KEY);
+            logger.log('ORACLE', `🔑 handleKeyPhase: depositItem returned: ${itemDeposited}`);
+
+            if (itemDeposited) {
+                gameState.removeKey();
+
+                this.scene.lastDepositTime = now;
+
+                // Воспроизводим звук применения ключа к оракулу
+                audioManager.playApplyKey();
+
+                // ✅ Используем машину состояний для применения предмета
+                player.applyKey();
+
+                // ✅ Обновляем HUD (ключи отображаются только там)
+                this.scene.hudManager.update();
+
+                // ✅ Получаем количество хранимых ключей
+                const storedKeys = oracle.getStoredKeys();
+                logger.log('ORACLE', `🔑 handleKeyPhase: Oracle now has ${storedKeys}/3 keys`);
+
+                // ✅ Если все ключи собраны, активируем оракул
+                logger.log('ORACLE', `🔑 handleKeyPhase: Checking if Oracle should activate (${storedKeys} >= 3)`);
+                if (storedKeys >= 3) {
+                    logger.log('ORACLE', '🔥 handleKeyPhase: ACTIVATING ORACLE!');
+                    this.scene.isOracleActivated = true;
+                    gameState.setOracleActivated(true);
+
+                    // ✅ Настраиваем обработчик кликов по Оракулу
+                    oracle.enableInteraction();
+
+                    if (DEBUG_UI_ENABLED) {
+                        this.scene.hudManager.update();
+                    }
+                } else {
+                    logger.log('ORACLE', `⚠️ handleKeyPhase: Not enough keys yet (${storedKeys}/3)`);
+                }
+            } else {
+                logger.log('ORACLE', '❌ handleKeyPhase: depositItem returned false (Oracle rejected key)');
+            }
+        } else {
+            logger.log('ORACLE', '❌ handleKeyPhase: Player has no keys');
         }
     }
 

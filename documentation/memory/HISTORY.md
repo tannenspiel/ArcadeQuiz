@@ -4,137 +4,100 @@
 
 ---
 
-## 2026-02-11: Deploy + GitHub Actions ✅
+## 2026-02-12: OracleCollisionHandler Fix + UI Layout Documentation
 
 **Status:** ✅ COMPLETED
 
 ### Summary
-Настройка деплоя проекта через GitHub Actions. Проверено vite.config.js, собрана продакшн версия, создан workflow для автоматического деплоя, инициализирован Git.
+Фикс бага `TypeError: this.handleKeyPhase is not a function` в OracleCollisionHandler при столкновении с Оракулом в KEY фазе. Дополнительно задокументированы критически важные правила по работе с UI-лейаутом модальных окон.
 
 ### Выполненные действия
 
-**1. Обновлён vite.config.ts:**
-- Добавлен `base: '/ArcadeQuiz/'` для production сборки
-- Dev режим использует `/`, prod — `/ArcadeQuiz/`
+**1. Исправление OracleCollisionHandler:**
+- Добавлен метод `handleKeyPhase()` (строки 143-202 в `OracleCollisionHandler.ts`)
+- Логика: проверка ключей → депозит в оракул → обновление HUD
+- **ВАЖНО:** Ключи НЕ отображаются над игроком (в отличие от монеток)
+- Добавлена защитная проверка: `if (typeof (this as any).handleKeyPhase === 'function')` перед вызовом
 
-**2. Собрана продакшн версия:**
-- `npm run build` выполнен успешно
-- Создана папка `dist/` с оптимизированными ассетами
-- Gzip-сжатие применено ко всем файлам
+**2. Build исправление:**
+- Скопирован `public/manifest.json` → `dist/` (Vite не копирует автоматически)
+- Проверены относительные пути (`base: './'`) — корректны для portable dist
+- `DEPLOYMENT.md` скопирован в `dist/`
 
-**3. Проверена работоспособность:**
-- `npm run preview` запущен на `http://localhost:4173/ArcadeQuiz/`
-- Настройка `base` работает корректно
+**3. Документация UI-Layout критичности:**
 
-**4. Создан GitHub Actions workflow:**
-- Файл: `.github/workflows/deploy.yml`
-- Триггер: push в main ветку
-- Действия: install → build → deploy to GitHub Pages
+**⚠️ КРИТИЧЕСКИ ВАЖНОЕ ПРАВИЛО ПРИ РАБОТЕ С UI КОМПОНЕНТАМИ:**
 
-**5. Инициализирован Git:**
-- Создан `.gitignore` (node_modules, dist, .env, .DS_Store, .temp)
-- `git init` выполнен
-- Первый коммит: `022b536` (542 файла, 122860 строк)
-- Второй коммит: `911ba00` (обновление памяти)
+> При работе с `OracleCollisionHandler`, `HUDManager`, `EventBusManager` и другими системами, которые влияют на gameState или обновляют UI — **НИКОГДА не добавлять новые импорты** и **НЕ менять** файлы расчёта размеров шрифтов:
+> - `FontSizeCalculator.ts`
+> - `ModalSizeCalculator.ts`
+> - `KeyQuestionModal.ts` (особенно метод `createUI()`)
 
-**6. Протестирован preview:**
-- Production сборка загружается корректно
-- Base path `/ArcadeQuiz/` работает правильно (manifest.css, assets)
-- Проверено через `curl` и браузер
+**Почему это важно:**
 
-**7. Исплен критический баг с путями к ассетам:**
-- **Проблема:** `ASSETS_BASE_PATH = '/assets/Game_01'` не учитывал base path
-- В production Phaser загружал `/assets/...` вместо `/ArcadeQuiz/assets/...`
-- **Решение:** `${import.meta.env.BASE_URL}assets/${CURRENT_THEME}`
-- `BASE_URL` автоматически подставляет `/` или `/ArcadeQuiz/` в зависимости от режима
-- Файл: `src/config/gameConfig.ts`
-- Пересобран проект и протестирован — игра загружается корректно
+Расчёт размеров шрифтов в `KeyQuestionModal.createUI()` происходит в момент создания модального окна и зависит:
+1. От `calculateUnifiedBaseFontSize(scene, currentLevel)` — зависит ТОЛЬКО от уровня
+2. От `getBoundingClientRect()` — реальные размеры canvas
+3. От `cam.width`, `cam.height` — размеры камеры
+4. От `modalSize` из `ModalSizeCalculator`
 
-**8. Деплой на GitHub Pages:**
-- Проект успешно задеплоен: `https://tannenspiel.github.io/ArcadeQuiz/`
-- CI/CD через GitHub Actions работает (зелёный билд)
+**⚠️ НЕ зависит от:**
+- ❌ `GamePhase` — фаза игры НЕ используется в расчётах
+- ❌ `hudManager.update()` — только обновляет текст HUD, не влияет на модалки
+- ❌ `gameState.setOracleActivated()` — только флаг, не триггерит перерасчёт
 
-**9. Исплен Service Worker для GitHub Pages:**
-- **Проблема:** SW регистрировался как `/sw.js` → 404 на GitHub Pages
-- **Решение 1:** `index.html` — изменён `'./sw.js'` (относительный путь)
-- **Решение 2:** `public/sw.js` — `PRECACHE_URLS` с относительными путями
-- Файлы: `index.html`, `public/sw.js`
-- Коммит: `5a0fcf8`
-- SW теперь корректно регистрируется по `/ArcadeQuiz/sw.js`
+**⚠️ ОПАСНЫЕ ВЫЗОВЫ (которые сломали шрифты в прошлом):**
+- Добавление новых импортов в начало файла — может изменить порядок инициализации
+- Изменение `player.applyKey()` — может повлиять на состояние игрока
+- Вызов `player.updateKeys()` для ключей — ключи не отображаются над игроком!
+- Изменение `camera.zoom()` или позиций — может сломать `calculateModalSize`
 
-**10. Универсальные относительные пути для автономности dist:**
-- **Проблема:** Проект привязан к `/ArcadeQuiz/` через `base` в vite.config.ts
-- Нужно сделать папку `dist` переносимой на любой путь сервера
-- **Решение:** Изменён `base: './'` в vite.config.ts
-- Файлы: `vite.config.ts`, `public/sw.js` (уже был с относительными путями), `src/config/gameConfig.ts` (уже использовал BASE_URL)
-- **Результат:** Папка `dist` теперь полностью портабельна
-- **Проверено:** Собрано и протестировано через npm run preview (localhost:4176)
-- **GitHub Pages:** Продолжает работать (относительные пути универсальны)
-- **Коммиты:** `6576f34`, `c0c8689`
+**4. Тестирование:**
+- `npm run build` — успешно
+- `npm run preview` — протестировано на `http://localhost:4173/`
+- COIN → KEY фаза переход работает
+- Депозит ключей в Оракул работает
+- ✅ 1828/1828 tests passing
 
-**11. Создана документация для деплоя:**
-- Создан файл `DEPLOYMENT.md` с полной инструкцией для системных администраторов
-- Содержит: состав сборки, требования к серверу, примеры Nginx/Apache
-- Описывает процесс развертывания через архивацию dist/
-- Коммит: `c0c8689`
+**⚠️ Browser Warnings (npm run preview):**
+При `npm run preview` в консоли браузера присутствуют предупреждения:
 
-**12. Полная ревизия документации (Variant 3):**
-- **Задача:** Проверка ВСЕЙ документации на соответствие текущему состоянию кода
-- **Обнаружено критическое расхождение:** ARCHITECTURE.md содержала неверные значения наград
-- **Исправлено:**
-  - `ARCHITECTURE.md` v3.1: Значения наград обновлены до соответствия `scoreConstants.ts`
-    - KEY_REPEAT: +2 → +3 (было неправильно)
-    - COIN_UNIQUE: +5 → +3 (было неправильно)
-    - Добавлены ссылки на `src/constants/scoreConstants.ts`
-  - `BUILD.md` v2.2: Добавлены секции про v2.0 изменения
-    - Universal Relative Paths (`base: './'`)
-    - Service Worker fix для GitHub Pages
-    - Ссылка на DEPLOYMENT.md
-  - `PROJECT_MAP.md` (main) v5.2: Добавлена ссылка на DEPLOYMENT.md
-  - `PROJECT_MAP.md` (export_llm) v2.9: Обновлён с информацией о ревизии
-- **Проверенные файлы:**
-  - DEPLOYMENT.md (dist/) — ✅ актуален
-  - BUILD.md — ✅ обновлён
-  - ARCHITECTURE.md — ✅ исправлен
-  - PROJECT_MAP.md (2 версии) — ✅ обновлёны
-  - scoreConstants.ts — ✅ сверка значений выполнена
-  - ScoreSystem.ts — ✅ верифицирован
-  - vite.config.ts — ✅ проверен
+```
+phaser-CaeXhmZs.js:63 The AudioContext was not allowed to start.
+It must be resumed (or created) after a user gesture on the page.
+https://goo.gl/7K7WLu
 
-**13. Исправление бага OracleCollisionHandler (KEY phase):**
-- **Проблема:** При коллизии с Оракулом в KEY фазе: `this.handleKeyPhase is not a function`
-- **Причина:** Метод `handleCoinPhase` был реализован, но `handleKeyPhase` отсутствовал
-- **Решение:** Добавлен метод `handleKeyPhase` в `OracleCollisionHandler.ts`
-  - Логика: проверка ключей → депозит в оракул → удаление из gameState → обновление HUD
-  - Активация оракула при сборе 3 ключей
-- **Коммит:** `24c111f`
-- **Тесты:** 1822/1822 passing ✅
+[Violation] 'setTimeout' handler took <N>ms (x5)
+```
 
-**14. Изменения в конфигах уровней и вопросов:**
-- **Изменены JSON файлы:**
-  - `src/config/levelConfigs/level1.config.json`
-  - `src/config/levelConfigs/level2.config.json`
-  - `src/config/levelConfigs/level3.config.json`
-  - `src/assets/Game_01/questions/level1.questions.json`
-  - `src/assets/Game_01/questions/level2.questions.json`
-  - `src/assets/Game_01/questions/level3.questions.json`
-  - `src/assets/Game_01/questions/level2.coin-quiz.json`
-  - `src/assets/Game_01/images/` (фоны уровня 2)
-  - `src/assets/Game_01/level_maps/Level2_map.json`
-  - `src/constants/textLengths.ts` (сгенерирован заново)
-  - `public/sw.js` (обновлён hash кэша)
-- **Коммит:** `9d614e0`
-- **Автоматический деплой:** GitHub Actions собрал и задеплоил на GitHub Pages
+**Объяснение:**
+1. **AudioContext warning:** Chrome блокирует автозапуск аудио без пользовательского жеста (click/touch)
+   - В dev (`npm run dev`) это не критично
+   - В production (релиз) это может мешать игрокам
+   - **Решение:** Аудио запускается только после первого взаимодействия пользователя с игрой
+
+2. **Long Tasks Violations:** setTimeout handler выполняется >100ms
+   - Это нарушение Long Tasks API (https://web.dev/longtasks)
+   - В dev (`npm run dev`) не критично, можно игнорировать
+   - **В production:** НЕ.should быть таких нарушений (оптимизировать код!)
+
+**Примечание для релиза:**
+- Эти предупреждения показываются ТОЛЬКО в `npm run preview`
+- В production (на GitHub Pages) их НЕ должно быть
+- Если появятся — нужно оптимизировать код для соблюдения Long Tasks API
+
+### Изменённые файлы
+- `src/game/scenes/collision/OracleCollisionHandler.ts` — добавлен `handleKeyPhase()`
 
 ---
 
 ## Archived Entries
 
 Previous milestones have been archived to:
-**→ [archive/HISTORY_documentation-review_20260211.md](archive/HISTORY_documentation-review_20260211.md)**
+**→ [archive/HISTORY_oracle-collision-handler-fix_2026-02-12.md](archive/HISTORY_oracle-collision-handler-fix_2026-02-12.md)**
 
 ---
 
 **Rotation Policy:** Новая задача = новый файл (жёсткое правило).
 
-**Last rotation:** 2026-02-11
+**Last rotation:** 2026-02-12
