@@ -2,13 +2,13 @@
   "levelNumber": 3,
   "enemySpawn": {
     "initialCount": {
-      "randomWalker": 1,
-      "chaser": 1,
-      "flam": 1
+      "randomWalker": 10,
+      "chaser": 5,
+      "flam": 3
     },
     "initialSpawnDelay": 200,
     "periodicSpawnDelay": 6000,
-    "maxEnemies": 8,
+    "maxEnemies": 20,
     "enabledTypes": [
       "randomWalker",
       "chaser",
@@ -91,7 +91,7 @@
     }
   },
   "levelConfig": {
-    "useTiledMap": false,
+    "useTiledMap": true,
     "tiledMapKey": "level3_json",
     "portalSpawnRadius": 720,
     "maxInventoryKeys": 3

@@ -65,8 +65,66 @@
 **10. Универсальные относительные пути для автономности dist:**
 - **Проблема:** Проект привязан к `/ArcadeQuiz/` через `base` в vite.config.ts
 - Нужно сделать папку `dist` переносимой на любой путь сервера
-- **Решение в процессе:** Изменение `base` на относительные пути
-- Файлы: `vite.config.ts`, `public/sw.js`, `src/config/gameConfig.ts`
+- **Решение:** Изменён `base: './'` в vite.config.ts
+- Файлы: `vite.config.ts`, `public/sw.js` (уже был с относительными путями), `src/config/gameConfig.ts` (уже использовал BASE_URL)
+- **Результат:** Папка `dist` теперь полностью портабельна
+- **Проверено:** Собрано и протестировано через npm run preview (localhost:4176)
+- **GitHub Pages:** Продолжает работать (относительные пути универсальны)
+- **Коммиты:** `6576f34`, `c0c8689`
+
+**11. Создана документация для деплоя:**
+- Создан файл `DEPLOYMENT.md` с полной инструкцией для системных администраторов
+- Содержит: состав сборки, требования к серверу, примеры Nginx/Apache
+- Описывает процесс развертывания через архивацию dist/
+- Коммит: `c0c8689`
+
+**12. Полная ревизия документации (Variant 3):**
+- **Задача:** Проверка ВСЕЙ документации на соответствие текущему состоянию кода
+- **Обнаружено критическое расхождение:** ARCHITECTURE.md содержала неверные значения наград
+- **Исправлено:**
+  - `ARCHITECTURE.md` v3.1: Значения наград обновлены до соответствия `scoreConstants.ts`
+    - KEY_REPEAT: +2 → +3 (было неправильно)
+    - COIN_UNIQUE: +5 → +3 (было неправильно)
+    - Добавлены ссылки на `src/constants/scoreConstants.ts`
+  - `BUILD.md` v2.2: Добавлены секции про v2.0 изменения
+    - Universal Relative Paths (`base: './'`)
+    - Service Worker fix для GitHub Pages
+    - Ссылка на DEPLOYMENT.md
+  - `PROJECT_MAP.md` (main) v5.2: Добавлена ссылка на DEPLOYMENT.md
+  - `PROJECT_MAP.md` (export_llm) v2.9: Обновлён с информацией о ревизии
+- **Проверенные файлы:**
+  - DEPLOYMENT.md (dist/) — ✅ актуален
+  - BUILD.md — ✅ обновлён
+  - ARCHITECTURE.md — ✅ исправлен
+  - PROJECT_MAP.md (2 версии) — ✅ обновлёны
+  - scoreConstants.ts — ✅ сверка значений выполнена
+  - ScoreSystem.ts — ✅ верифицирован
+  - vite.config.ts — ✅ проверен
+
+**13. Исправление бага OracleCollisionHandler (KEY phase):**
+- **Проблема:** При коллизии с Оракулом в KEY фазе: `this.handleKeyPhase is not a function`
+- **Причина:** Метод `handleCoinPhase` был реализован, но `handleKeyPhase` отсутствовал
+- **Решение:** Добавлен метод `handleKeyPhase` в `OracleCollisionHandler.ts`
+  - Логика: проверка ключей → депозит в оракул → удаление из gameState → обновление HUD
+  - Активация оракула при сборе 3 ключей
+- **Коммит:** `24c111f`
+- **Тесты:** 1822/1822 passing ✅
+
+**14. Изменения в конфигах уровней и вопросов:**
+- **Изменены JSON файлы:**
+  - `src/config/levelConfigs/level1.config.json`
+  - `src/config/levelConfigs/level2.config.json`
+  - `src/config/levelConfigs/level3.config.json`
+  - `src/assets/Game_01/questions/level1.questions.json`
+  - `src/assets/Game_01/questions/level2.questions.json`
+  - `src/assets/Game_01/questions/level3.questions.json`
+  - `src/assets/Game_01/questions/level2.coin-quiz.json`
+  - `src/assets/Game_01/images/` (фоны уровня 2)
+  - `src/assets/Game_01/level_maps/Level2_map.json`
+  - `src/constants/textLengths.ts` (сгенерирован заново)
+  - `public/sw.js` (обновлён hash кэша)
+- **Коммит:** `9d614e0`
+- **Автоматический деплой:** GitHub Actions собрал и задеплоил на GitHub Pages
 
 ---
 

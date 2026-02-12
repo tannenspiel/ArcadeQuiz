@@ -1,7 +1,14 @@
 # Карта проекта ArcadeQuiz
 
-**Версия:** 5.1
-**Дата обновления:** 2026-02-10
+**Версия:** 5.2
+**Дата обновления:** 2026-02-11
+
+**Изменения в v5.2:**
+- ✅ **DOCUMENTATION AUDIT:** Полная проверка документации на соответствие коду
+  - Исправлены значения наград в ARCHITECTURE.md (соответствуют scoreConstants.ts)
+  - BUILD.md обновлён до v2.2 с информацией о Universal Relative Paths
+  - Добавлена ссылка на DEPLOYMENT.md для системных администраторов
+  - Обновлён export_llm/PROJECT_MAP.md до v2.9
 
 **Изменения в v5.1:**
 - ✅ **DOCUMENTATION AUDIT:** Обновление ProjectMap.md с новыми директориями сцены.
@@ -240,6 +247,9 @@
 - **SCALING_SYSTEM** → `documentation/main/ui/SCALING_SYSTEM.md` - Система масштабирования
 
 #### Development документация (development/)
+- **BUILD** → `documentation/main/development/BUILD.md` - Инструкции по сборке, запуску и деплою (v2.2)
+- **DEVELOPMENT** → `documentation/main/development/DEVELOPMENT.md` - Руководство по разработке
+- **DEPLOYMENT** → `dist/DEPLOYMENT.md` - Инструкция для системных администраторов по развёртыванию на сервере
 - **DEBUGGING_GUIDE** → `documentation/main/development/DEBUGGING_GUIDE.md` - Руководство по отладке (DebugOverlay, флаги, диагностика)
 
 #### Основная документация
@@ -338,6 +348,7 @@ ArcadeQuiz/
 │   │   ├── ARCHITECTURE.md            # Подробное описание архитектуры
 │   │   ├── BUILD.md                   # Инструкции по сборке и запуску
 │   │   ├── DEVELOPMENT.md             # Руководство по разработке
+│   │   └── (dist/)DEPLOYMENT.md        # Инструкция для системных администраторов по развёртыванию на сервере
 │   │   ├── DocumentationMaintenance.md # Поддержание документации
 │   │   ├── TESTING.md                 # Руководство по тестированию
 │   │   ├── GameDescription.md         # Описание игры

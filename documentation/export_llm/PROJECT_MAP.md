@@ -1,7 +1,14 @@
 # Project Map - ArcadeQuiz (Simplified for LLM)
 
-**Версия:** 2.8 (LLM)
-**Дата:** 2026-02-08
+**Версия:** 2.9 (LLM)
+**Дата:** 2026-02-11
+
+**Изменения в v2.9:**
+- ✅ **DOCUMENTATION AUDIT:** Полная проверка документации на соответствие коду
+- ✅ **BUILD.md v2.2:** Добавлена информация о Universal Relative Paths (v2.0)
+- ✅ **BUILD.md:** Добавлена секция про Service Worker fix для GitHub Pages
+- ✅ **DEPLOYMENT.md:** Добавлена ссылка на инструкцию для системных администраторов
+- ✅ **ARCHITECTURE.md v3.1:** Исправлены значения наград (соответствуют scoreConstants.ts)
 
 **Изменения в v2.8:**
 - ✅ **DOCUMENTATION REORGANIZATION:** Система масштабирования разделена на два файла.
@@ -148,6 +155,7 @@
 **Сборка и разработка:**
 - **BUILD** → `documentation/main/development/BUILD.md` - Сборка
 - **DEVELOPMENT** → `documentation/main/development/DEVELOPMENT.md` - Разработка
+- **DEPLOYMENT** → `dist/DEPLOYMENT.md` - Инструкция для системных администраторов по развёртыванию на сервере
 
 **Масштабирование:**
 - **VIEWPORT_SCALING** → `documentation/main/development/VIEWPORT_SCALING.md` - Система масштабирования окна и камеры

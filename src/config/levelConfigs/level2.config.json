@@ -2,13 +2,13 @@
   "levelNumber": 2,
   "enemySpawn": {
     "initialCount": {
-      "randomWalker": 1,
-      "chaser": 1,
-      "flam": 1
+      "randomWalker": 10,
+      "chaser": 3,
+      "flam": 3
     },
     "initialSpawnDelay": 200,
     "periodicSpawnDelay": 6000,
-    "maxEnemies": 5,
+    "maxEnemies": 20,
     "enabledTypes": [
       "randomWalker",
       "chaser",
@@ -37,8 +37,8 @@
       "showDetectionRadius": true
     },
     "chaser": {
-      "chaseRadius": 256,
-      "chaseSpeed": 90,
+      "chaseRadius": 300,
+      "chaseSpeed": 110,
       "cloneDetectionRadius": 0,
       "cloneCount": 0,
       "cloneSpawnDelay": 0,
@@ -91,7 +91,7 @@
     }
   },
   "levelConfig": {
-    "useTiledMap": false,
+    "useTiledMap": true,
     "tiledMapKey": "level2_json",
     "portalSpawnRadius": 720,
     "maxInventoryKeys": 3
