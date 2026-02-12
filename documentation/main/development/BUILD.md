@@ -2,7 +2,7 @@
 
 **Версия:** 2.2
 **Дата создания:** 2025-01-26
-**Дата последнего обновления:** 2026-02-11
+**Дата последнего обновления:** 2026-02-12
 **Статус:** Актуален
 
 **Изменения в v2.2:**
@@ -499,6 +499,84 @@ npm install
 - Проверьте импорты в `PhaserGame.tsx`
 - Убедитесь, что Phaser установлен: `npm list phaser`
 - Проверьте консоль браузера на ошибки
+
+---
+
+## PWA Update System
+
+### Обзор
+
+Игра использует Progressive Web App (PWA) Service Worker для кэширования ресурсов и автоматического обновления. При публикации новой версии игроки получают уведомление о доступном обновлении.
+
+### Архитектура
+
+**Файлы системы:**
+- `public/sw.js` — Service Worker (Network First strategy)
+- `index.html` — регистрация SW и обработчик updatefound
+- `src/react/PhaserGame.tsx` — React компонент уведомления (резерв)
+- `scripts/generate-cache-version.js` — генерация версии кэша
+- `.cache-version.json` — текущая версия кэша
+
+### Как работает обновление
+
+1. **Проверка версии:** Service Worker сравнивает `CACHE_VERSION` при загрузке
+2. **Обнаружение обновления:** Браузер находит новый `sw.js` с другой версией
+3. **Авто-обновление:** Страница перезагружается автоматически через 1 секунду
+4. **Активация:** Новый Service Worker активируется и кэширует ресурсы
+
+### Код обновления
+
+**Регистрация SW** (`index.html`):
+```javascript
+registration.addEventListener('updatefound', () => {
+    const newWorker = registration.installing;
+    if (newWorker) {
+        newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // ✅ АВТОМАТИЧЕСКАЯ ПЕРЕЗАГРУЗКА
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        });
+    }
+});
+```
+
+**Кнопка ОБНОВИТЬ** (резерв в `PhaserGame.tsx`):
+```tsx
+// Для мобильных устройств требуется onTouchStart
+<button
+    onClick={handleUpdate}
+    onTouchStart={handleUpdate}  // ✅ Mobile fix
+    style={{ touchAction: 'manipulation' }}
+>
+    Обновить
+</button>
+```
+
+### Версионирование кэша
+
+Версия кэша формируется автоматически из хэша конфиг файлов:
+```
+scripts/generate-cache-version.js
+→ хэширует level1.config.json + level2.config.json
+→ создаёт .cache-version.json
+→ обновляет public/sw.js
+```
+
+Формат версии: `YYYY-MM-DD-hash` (например: `2026-02-12-e21ab915`)
+
+### Отключение для разработки
+
+В режиме `localhost` или `127.0.0.1` Service Worker не регистрируется:
+
+```javascript
+const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+if ('serviceWorker' in navigator && !isDev) {
+    // SW регистрация только в production
+}
+```
 
 ---
 
