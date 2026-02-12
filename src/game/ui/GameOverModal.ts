@@ -26,6 +26,7 @@ import { calculateBaseFontSize, calculateButtonFontSize, calculateUnifiedBaseFon
 import { AB_TESTING } from '../../config/gameConfig';
 import { NineSliceBackground } from './NineSliceBackground';
 import { logger } from '../../utils/Logger';
+import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
 
 export enum GameOverType {
   WIN_GAME = 'win_game',      // Выигрыш всей игры (YOU WIN)
@@ -116,10 +117,8 @@ export class GameOverModal {
       'GameOverModal' // Имя модального окна для логов
     );
 
-    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (как в KeyQuestionModal)
+    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (используем ModalPositioningHelper)
     // Чтобы избежать дробных пикселей при BASE_SCALE=4, координаты и размеры должны быть кратны 4 (или 8 для центрирования)
-    const snapToGrid = (val: number) => Math.round(val / BASE_SCALE) * BASE_SCALE;
-    const snapToGridDouble = (val: number) => Math.round(val / (BASE_SCALE * 2)) * (BASE_SCALE * 2);
 
     const modalWidth = snapToGridDouble(modalSize.width);
     const modalHeight = snapToGridDouble(modalSize.height);
