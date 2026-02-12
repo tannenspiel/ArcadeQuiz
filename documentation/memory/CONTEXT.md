@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-12 (session)
 **Branch:** `master` (first commit: 022b536)
-**Status:** OracleCollisionHandler Fix + UI Layout Docs ✅ COMPLETED
+**Status:** Loading Screen UI Improvements ✅ COMPLETED
 
 ---
 
@@ -12,7 +12,7 @@
 |---------|-------|
 | **Port** | `3000` (dev), `4173` (preview) |
 | **Start Command** | `npm run dev` / `npm run build && npm run preview` |
-| **Server Status** | ✅ STOPPED |
+| **Server Status** | ✅ RUNNING (background) |
 | **Browser** | Chrome (chrome-devtools-mcp) |
 | **Tests** | ✅ 1843/1843 passing |
 | **Git** | ✅ Initialized (first commit: 022b536) |
@@ -21,22 +21,14 @@
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** ✅ OracleCollisionHandler Fix + UI Layout Documentation завершена
+**ТЕКУЩАЯ ЗАДАЧА:** ✅ Loading Screen UI Improvements завершена
 
 **Выполнено:**
-- ✅ Исправлен `TypeError: this.handleKeyPhase is not a function` в OracleCollisionHandler
-- ✅ Добавлен метод `handleKeyPhase()` с логикой депозита ключей
-- ✅ Добавлена защитная проверка `typeof` перед вызовом метода
-- ✅ Build и preview протестированы — всё работает
-- ✅ Задокументированы критические правила по работе с UI-лейаутом модальных окон (см. HISTORY.md)
-
-**Выполнено (Documentation Audit):**
-- ✅ ARCHITECTURE.md v3.1: Исправлены значения наград (соответствуют scoreConstants.ts)
-- ✅ BUILD.md v2.2: Добавлены секции про Universal Relative Paths и Service Worker
-- ✅ PROJECT_MAP.md (main) v5.2: Добавлена ссылка на DEPLOYMENT.md
-- ✅ PROJECT_MAP.md (export_llm) v2.9: Обновлён с информацией о ревизии
-- ✅ HISTORY.md: Добавлен пункт 12 о полной ревизии документации
-- ✅ Создан отчёт: `documentation/temp_docs/DOCUMENTATION_AUDIT_REPORT_2026-02-11.md`
+- ✅ Добавлены правила игры на экран загрузки (над заголовком)
+- ✅ Уменьшены шрифты: заголовок 36px, правила 14px, загрузка 16px, проценты 14px
+- ✅ Настроены отступы для предотвращения наложения элементов
+- ✅ Улучшено удаление DOM overlay после завершения загрузки
+- ✅ Build успешно выполнен
 
 ---
 
@@ -56,6 +48,7 @@
 | 2026-02-10 | Cleanup: Remove auto-history scripts | ✅ COMPLETED |
 | 2026-02-10 | Sound Button State Persistence | ✅ COMPLETED |
 | 2026-02-12 | OracleCollisionHandler Fix + UI Layout Docs | ✅ COMPLETED |
+| 2026-02-12 | Loading Screen UI Improvements | ✅ COMPLETED |
 
 ---
 

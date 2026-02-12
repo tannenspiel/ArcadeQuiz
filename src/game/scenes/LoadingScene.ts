@@ -169,13 +169,31 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
       font-family: 'Nunito', sans-serif;
     `;
 
+    // Правила игры (ВЫШЕ заголовка)
+    const rulesText = document.createElement('div');
+    rulesText.innerHTML = `
+      <div style="text-align: center; line-height: 1.4;">
+        🪙 Собирай монетки<br/>
+        🗿 Неси к Оракулу<br/>
+        🔑 Собирай ключи<br/>
+        🚪 Разблокируй порталы
+      </div>
+    `;
+    rulesText.style.cssText = `
+      font-size: 14px;
+      color: #cccccc;
+      margin-bottom: 15px;
+      margin-top: -80px;
+    `;
+    this.domTextOverlay.appendChild(rulesText);
+
     // Заголовок
     const title = document.createElement('div');
     title.textContent = 'ArcadeQuiz';
     title.style.cssText = `
-      font-size: 48px;
+      font-size: 36px;
       color: #ffffff;
-      margin-bottom: 150px;
+      margin-bottom: 20px;
       text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
       font-weight: bold;
     `;
@@ -185,10 +203,12 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
     this.domLoadingText = document.createElement('div');
     this.domLoadingText.textContent = 'Загрузка...';
     this.domLoadingText.style.cssText = `
-      font-size: 24px;
+      font-size: 16px;
       color: #ffffff;
-      margin-top: 80px;
+      margin-bottom: 10px;
+      margin-top: 130px;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      text-align: center;
     `;
     this.domTextOverlay.appendChild(this.domLoadingText);
 
@@ -196,10 +216,10 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
     this.domProgressText = document.createElement('div');
     this.domProgressText.textContent = '0%';
     this.domProgressText.style.cssText = `
-      font-size: 20px;
+      font-size: 14px;
       color: #ffffff;
-      margin-top: 10px;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      text-align: center;
     `;
     this.domTextOverlay.appendChild(this.domProgressText);
 
@@ -414,10 +434,7 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
     // Final UI update
     this.setProgress(100, 'Готово!');
 
-    // ✅ UX Fix: Ждем 300мс, чтобы пользователь успел увидеть "100%", и только потом убираем
-    // ✅ UX Fix: Ждем 300мс, чтобы пользователь успел увидеть "100%", и только потом убираем
-    // Используем setTimeout вместо this.time.delayedCall, чтобы таймер сработал, 
-    // даже если MainScene поставит LoadingScene на паузу (Race Condition Fix)
+    // Временная задержка 3 сек для демонстрации (вернуть 300 после проверки)
     setTimeout(() => {
       // ✅ КРИТИЧНО: Удаляем ВСЕ DOM overlay глобально (защита от двойного вызова)
       const allOverlays = document.querySelectorAll('[data-loading-overlay="true"]');
@@ -430,6 +447,18 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
             // Игнорируем ошибки
           }
         });
+      }
+
+      // Дополнительная очистка: удаляем все дочерние элементы
+      if (this.domTextOverlay && this.domTextOverlay.parentNode) {
+        try {
+          while (this.domTextOverlay.firstChild) {
+            this.domTextOverlay.removeChild(this.domTextOverlay.firstChild);
+          }
+          this.domTextOverlay.parentNode.removeChild(this.domTextOverlay);
+        } catch (e) {
+          // Игнорируем ошибки
+        }
       }
 
       this.domTextOverlay = undefined;
