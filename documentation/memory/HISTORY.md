@@ -4,6 +4,49 @@
 
 ---
 
+## 2026-02-12: PWA Update Button Mobile Fix
+
+**Status:** ✅ COMPLETED
+
+### Summary
+Исправление тапабельности кнопки "ОБНОВИТЬ" в PWA уведомлении на мобильных устройствах. На мобильных устройствах `onClick` событие не срабатывает без `onTouchStart` обработчика.
+
+### Выполненные действия
+
+**1. Анализ проблемы:**
+- Кнопка "ОБНОВИТЬ" в модальном окне не тапалась на мобильных
+- `TEST PWA` кнопка (для теста) работала, значит проблема в React onClick
+- Eruda консоль не работала из-за z-index конфликтов с Phaser canvas
+
+**2. Исправление PhaserGame.tsx:**
+- Добавлен `onTouchStart={handleUpdate}` к кнопке "ОБНОВИТЬ"
+- Добавлен `touchAction: 'manipulation'` для быстрого отклика
+- Код:
+  ```tsx
+  <button
+    onClick={handleUpdate}
+    onTouchStart={handleUpdate}  // ✅ Добавлено
+    style={{ ..., touchAction: 'manipulation' }}
+  >
+  ```
+
+**3. Упрощение PWA обновления:**
+- Убрана проверка на `window.showUpdateNotification` в index.html
+- Теперь Service Worker автоматически перезагружает страницу при обнаружении обновления
+- Задержка 1 секунда перед перезагрузкой для плавности
+
+**4. Тестирование:**
+- На телефоне (Android): кнопка "ОБНОВИТЬ" стала тапабельной ✅
+- Автоматическое обновление через изменение версии кэша работает ✅
+
+### Изменённые файлы
+- `src/react/PhaserGame.tsx` — добавлен `onTouchStart`
+- `index.html` — упрощена логика авто-обновления
+- `.cache-version.json` — изменена версия для тестирования
+- `public/sw.js` — синхронизирована версия
+
+---
+
 ## 2026-02-12: OracleCollisionHandler Fix + UI Layout Documentation
 
 **Status:** ✅ COMPLETED

@@ -486,6 +486,7 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                         </p>
                         <button
                             onClick={handleUpdate}
+                            onTouchStart={handleUpdate}
                             style={{
                                 backgroundColor: '#4ade80',
                                 color: '#1a202c',
@@ -496,7 +497,8 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                fontFamily: 'Nunito, sans-serif'
+                                fontFamily: 'Nunito, sans-serif',
+                                touchAction: 'manipulation'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.backgroundColor = '#22c55e';

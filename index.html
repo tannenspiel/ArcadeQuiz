@@ -206,16 +206,13 @@
                                 newWorker.addEventListener('statechange', () => {
                                     if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                                         // Новый Service Worker установлен, но ещё не активирован
-                                        console.log('[SW] New version available!');
+                                        console.log('[SW] New version available! Reloading...');
 
-                                        // Показать уведомление об обновлении
-                                        if (window.showUpdateNotification) {
-                                            window.showUpdateNotification();
-                                        } else {
-                                            // Автоматическая перезагрузка (можно изменить)
-                                            console.log('[SW] Reloading to apply updates...');
+                                        // ✅ АВТОМАТИЧЕСКАЯ ПЕРЕЗАГРУЗКА
+                                        // Даём небольшую задержку перед перезагрузкой
+                                        setTimeout(() => {
                                             window.location.reload();
-                                        }
+                                        }, 1000);
                                     }
                                 });
                             }
@@ -242,6 +239,8 @@
             });
         }
     </script>
+
+    <!-- PWA update notification button is handled by React in PhaserGame.tsx -->
 </body>
 
 </html>
