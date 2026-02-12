@@ -9,7 +9,7 @@ interface UIOverlayProps {
 
 const UIOverlay: React.FC<UIOverlayProps> = ({ health, keys, isOracleActive, globalQuestion }) => {
     return (
-        <div className="w-full h-full p-4 pointer-events-none select-none">
+        <div className="w-full h-full p-4 select-none">
             <div className="flex flex-col justify-between h-full">
             
             {/* Top Stats Bar */}
