@@ -30,7 +30,10 @@ export const AB_TESTING = {
   USE_NINE_SLICE_BUTTON: import.meta.env.VITE_USE_NINE_SLICE_BUTTON !== 'false',
 
   // Включить визуальные индикаторы собранных монет на Оракуле
-  ENABLE_ORACLE_COIN_INDICATORS: import.meta.env.VITE_ENABLE_ORACLE_COIN_INDICATORS !== 'false'
+  ENABLE_ORACLE_COIN_INDICATORS: import.meta.env.VITE_ENABLE_ORACLE_COIN_INDICATORS !== 'false',
+
+    // 🆕 Отладка логов кнопок (шаг 6 плана)
+    DEBUG_BUTTON_EVENTS: import.meta.env.VITE_DEBUG_BUTTON_EVENTS !== 'false'
 };
 
 // A/B тестирование для глобальных вопросов

@@ -182,6 +182,7 @@ export const DEBUG_VISUAL_GRID_ENABLED = !_IS_PRODUCTION && getEnv('ARCADE_LOG_V
 /// ОСТОРОЖНО: Много спама при каждом обновлении сетки!
 /// ⚠️ ВСЕГДА отключен в production
 export const DEBUG_SPAWN_GRID_ENABLED = !_IS_PRODUCTION && getEnv('ARCADE_LOG_SPAWN_GRID_ENABLED') === 'true';
+export const DEBUG_BUTTON_EVENTS = getEnv('VITE_DEBUG_BUTTON_EVENTS') === 'true';
 
 // ============================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
