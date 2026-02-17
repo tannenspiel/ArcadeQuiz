@@ -404,13 +404,13 @@ export class GameOverModal {
   private getTitleText(): string {
     switch (this.config.type) {
       case GameOverType.WIN_GAME:
-        return 'YOU WIN';
+        return 'ПОБЕДА!';
       case GameOverType.WIN_LEVEL:
         return 'УРОВЕНЬ ПРОЙДЕН!';
       case GameOverType.LOSE:
-        return 'GAME OVER';
+        return 'ПРОИГРАЛИ:(';
       default:
-        return 'GAME OVER';
+        return 'ПРОИГРАЛИ:(';
     }
   }
 
