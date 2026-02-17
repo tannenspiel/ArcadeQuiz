@@ -16,9 +16,9 @@ export const USE_CUSTOM_FONT = false; // ✅ Флаг для включения/
 export const DISABLE_ALL_MULTIPLIERS = false; // ✅ Флаг для отключения всех множителей (true = все множители = 1.0)
 
 // ✅ Мультипликаторы для точечной настройки размеров шрифта в GameOverModal
-export const GAMEOVER_TITLE_FONT_MULTIPLIER = 0.85;
-export const GAMEOVER_FEEDBACK_FONT_MULTIPLIER = 0.85;
-export const GAMEOVER_SCORE_FONT_MULTIPLIER = 0.85;
+export const GAMEOVER_TITLE_FONT_MULTIPLIER = 1.0;
+export const GAMEOVER_FEEDBACK_FONT_MULTIPLIER = 1.0;
+export const GAMEOVER_SCORE_FONT_MULTIPLIER = 1.25;
 export const GAMEOVER_BUTTON_FONT_MULTIPLIER = 0.85;
 
 // Если USE_CUSTOM_FONT = true, используем PixeloidSans, иначе sans-serif (нативный)
