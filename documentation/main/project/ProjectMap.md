@@ -211,7 +211,7 @@
 - **BrowserLogger** → `src/utils/BrowserLogger.ts` - Перехват консоли для скачивания логов
 - **TextAnalyzer** → `src/game/utils/TextAnalyzer.ts` - Анализ текстов в вопросах
 - **BubblePositionCalculator** → `src/game/utils/BubblePositionCalculator.ts` - Расчет позиции баббла
-- **FontSizeCalculator** → `src/game/utils/FontSizeCalculator.ts` - Калькулятор размера шрифта
+- **FontSizeCalculator** → `src/game/utils/FontSizeCalculator.ts` - Калькулятор размера шрифта (v3: бинарный поиск максимального fontSize + wordWrap-симуляция)
 - **PixelFontCalculator** → `src/game/utils/PixelFontCalculator.ts` - Калькулятор для пиксельных шрифтов
 
 ### 🧪 Тестовая инфраструктура (`src/tests/`)
@@ -243,7 +243,7 @@
 - **MODAL_GUIDE** → `documentation/main/ui/MODAL_GUIDE.md` - Руководство по модальным окнам (KeyQuestionModal, PortalModal, GameOverModal)
 - **UI_COMPONENTS** → `documentation/main/ui/UI_COMPONENTS.md` - UI компоненты
 - **UI_TEXT_SCALING** → `documentation/main/ui/UI_TEXT_SCALING.md` - Grid Snapping и масштабирование текста
-- **FONT_SIZING_SYSTEM** → `documentation/main/ui/FONT_SIZING_SYSTEM.md` - Система расчёта размеров шрифтов
+- **FONT_SIZING_SYSTEM** → `documentation/main/ui/FONT_SIZING_SYSTEM.md` - Система расчёта размеров шрифтов (v3: бинарный поиск, пословный wordWrap, без лимита строк)
 - **SCALING_SYSTEM** → `documentation/main/ui/SCALING_SYSTEM.md` - Система масштабирования
 
 #### Development документация (development/)

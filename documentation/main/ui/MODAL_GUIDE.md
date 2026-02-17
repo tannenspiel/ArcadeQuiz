@@ -1,8 +1,8 @@
 # Modal Guide - Руководство по модальным окнам
 
-**Версия:** 2.0
+**Версия:** 3.0
 **Дата создания:** 2026-01-28
-**Последнее обновление:** 2026-02-06
+**Последнее обновление:** 2026-02-16
 **Назначение:** Комплексное руководство по всем модальным окнам игры
 **Затронутые файлы:**
 - `src/game/ui/KeyQuestionModal.ts`
@@ -22,32 +22,37 @@
 
 - **Паузят** игровую сцену при открытии
 - **Блокируют** ввод до закрытия
-- **Используют** Unified Font System для единообразного масштабирования текста
+- **Используют** Tiered Font System v3 (бинарный поиск) для расчёта размеров шрифтов
 - **Поддерживают** Grid Snapping для pixel-perfect позиционирования
-- **Используют** систему 7 диапазонов aspect ratio для адаптивности
-- **Применяют** адаптивные множители шрифтов по типу экрана
+- **Автоматически адаптируются** к любым размерам экрана без таблиц множителей
 
 ---
 
-## ✨ v2.0 - Система 7 диапазонов Aspect Ratio
+## ✨ v3.0 - Система Бинарного Поиска (Tiered Font System)
 
-Вместо бинарной системы (portrait/landscape) используется 7 адаптивных диапазонов для более точной подстройки под различные экраны:
+**Текущая система** — прямой бинарный поиск размера шрифта без таблиц множителей.
 
-| # | Диапазон | screenAR | Aspect Ratio | Множитель шрифта | Описание |
-|---|----------|-----------|--------------|------------------|----------|
-| 1 | Ultra Narrow | 0.25–0.45 | 0.35 | 1.26 | Экстремально узкие (тестирование) |
-| 2 | Extra Narrow | 0.45–0.6 | 0.525 | 1.34 | Очень узкие (foldable phones) |
-| 3 | Mobile Narrow | 0.6–0.75 | 0.60 | 1.41 | Узкие мобильные (iPhone SE) |
-| 4 | Mobile Standard | 0.75–1.0 | 0.75 | 1.45 | Стандартные мобильные портрет |
-| 5 | Tablet/Square | 1.0–1.3 | 0.85 | 1.49 | Планшеты, почти квадратные |
-| 6 | Monitor Small | 1.3–1.6 | 0.95 | 1.54 | Небольшие мониторы |
-| 7 | Monitor Large | 1.6+ | 1.0 | 1.54 | Большие мониторы (квадрат) |
+**Принцип работы (v3):**
+1. Текстовый блок имеет строго заданные размеры (в процентах от высоты окна или фиксированные).
+2. Алгоритм (`calculateTieredFontSizeSimple`) подбирает **максимально возможный размер шрифта**, при котором текст с полным переносом слов (wordWrap) помещается в этот блок.
+3. **Адаптация автоматическая** — без таблиц множителей:
+   - Узкий экран → больше строк → меньше шрифт.
+   - Широкий экран → меньше строк → больше шрифт.
 
-**Примечания:**
-- `screenAR` = canvasWidth / canvasHeight — соотношение сторон экрана
-- `Aspect Ratio` = width / height модального окна
-- Множители шрифта v7 увеличены на ~10% для лучшей читаемости
-- Extra Narrow aspect ratio увеличен до 0.525 (+5% ширины)
+**Функции расчёта по компонентам:**
+| Компонент | Функция |
+|-----------|---------|
+| KeyQuestionModal | `calculateTieredFontSizeSimple` |
+| CoinBubbleQuiz | `calculateTieredFontSizeSimple` |
+| QuestionBubble | `calculateTieredFontSizeSimple` |
+| PortalModal | `calculatePortalTieredFontSize` (изолированная копия v3) |
+| GameOverModal | `calculateGameOverTieredFontSize` (изолированная копия v3) |
+
+**Преимущества:**
+- ✅ Гарантирует, что текст всегда поместится.
+- ✅ Использует максимально возможное пространство.
+- ✅ Работает для любых языков и длин строк.
+- ✅ Не требует обновления таблиц при изменении размеров экрана.
 
 ---
 
@@ -99,13 +104,28 @@
 └──────────────────────────────────────┘
 ```
 
-#### Адаптивные множители шрифта
+#### Расчёт размера шрифта (v3)
 
-| Элемент | Фиксированный множитель | Адаптивный множитель | Финальная формула |
-|---------|------------------------|---------------------|-------------------|
-| Вопрос | 1.0 | 1.26–1.54 | `baseFontSize × adaptiveMultiplier × 1.0` |
-| Фидбэк | 1.0 | 1.26–1.54 | `baseFontSize × adaptiveMultiplier × 1.0` |
-| Кнопки | 1.0 | 1.26–1.54 | `baseFontSize × adaptiveMultiplier × 1.0` |
+Три независимых размера шрифта рассчитываются через `calculateTieredFontSizeSimple`:
+
+| Элемент | Функция | Особенности |
+|---------|---------|-------------|
+| Вопрос | `calculateTieredFontSizeSimple` | sans-serif |
+| Фидбэк | `calculateTieredFontSizeSimple` | monospace (`CHAR_WIDTH_RATIO_MONO`) |
+| Кнопки | `calculateTieredFontSizeSimple` | sans-serif |
+
+```typescript
+// Пример расчёта (нативные координаты!)
+const invZoom = 1 / this.scene.cameras.main.zoom;
+const nativeAvailableWidth = blockAvailableWidth / invZoom;
+const nativeAvailableHeight = blockAvailableHeight / invZoom;
+
+const questionFontSize = calculateTieredFontSizeSimple(
+  nativeAvailableWidth,
+  nativeAvailableHeight,
+  longestTexts.question  // полный текст для wordWrap симуляции
+);
+```
 
 #### Логика двойного клика
 
@@ -118,9 +138,9 @@
 **Неправильный ответ:**
 - Красный цвет, показ правильного ответа, закрытие через 2с
 
-#### Самый длинный текст
+#### Источник текста
 
-Используется `calculateUnifiedBaseFontSize()` который внутри использует `getLongestTexts()` от QuizManager → **max(question, answer, feedback)**
+Текст вопроса получается из **QuizManager** → **`getLongestTexts()`** → `max(question, answer, feedback)`
 
 ---
 
@@ -148,13 +168,21 @@
 └──────────────────────────────────────┘
 ```
 
-#### Адаптивные множители шрифта
+#### Расчёт размера шрифта (v3)
 
-| Элемент | Множитель | Финальная формула |
-|---------|-----------|-------------------|
-| Все элементы | 1.3 (фиксированный) | `baseFontSize × 1.3` |
+Все элементы используют **изолированную копию** функции v3:
 
-**Примечание:** PortalModal **НЕ использует** адаптивные множители `getFontSizeMultiplier()` — все элементы имеют фиксированный множитель 1.3.
+```typescript
+// PortalModal использует calculatePortalTieredFontSize
+const titleFontSize = calculatePortalTieredFontSize(
+  nativeAvailableWidth,
+  nativeAvailableHeight,
+  longestText
+);
+// Аналогично для question, answer, buttons
+```
+
+**Примечание:** `calculatePortalTieredFontSize` — это изолированная копия `calculateTieredFontSizeSimple` с идентичной логикой бинарного поиска.
 
 #### Особенности
 
@@ -163,9 +191,9 @@
 - **Блокировка** — закрытые уровни неактивны
 - **Изображение** — может показывать картинку глобального вопроса (справа от текста)
 
-#### Самый длинный текст
+#### Источник текста
 
-Используется `calculateUnifiedBaseFontSize()` который внутри использует `getLongestTexts()` от QuizManager → **max(question, answer, feedback)**
+Текст портала получается из **QuizManager** → **`getLongestTexts()`** → `max(question, answer, feedback)`
 
 ---
 
@@ -194,16 +222,21 @@
 └──────────────────────────────────────┘
 ```
 
-#### Адаптивные множители шрифта
+#### Расчёт размера шрифта (v3)
 
-| Элемент | Множитель | Финальная формула |
-|---------|-----------|-------------------|
-| Заголовок | 2.0 | `baseFontSize × 2.0` |
-| Счет | 2.0 | `baseFontSize × 2.0` |
-| Кнопки | 1.3 | `baseFontSize × 1.3` |
-| Фидбэк | 1.3 | `baseFontSize × 1.3` |
+Все элементы используют **изолированную копию** функции v3:
 
-**Примечание:** GameOverModal **НЕ использует** адаптивные множители `getFontSizeMultiplier()` — фиксированные множители по элементам.
+```typescript
+// GameOverModal использует calculateGameOverTieredFontSize
+const titleFontSize = calculateGameOverTieredFontSize(
+  nativeAvailableWidth,
+  nativeAvailableHeight,
+  longestText
+);
+// Аналогично для feedback, score, buttons
+```
+
+**Примечание:** `calculateGameOverTieredFontSize` — это изолированная копия `calculateTieredFontSizeSimple` с идентичной логикой бинарного поиска.
 
 #### Состояния
 
@@ -217,10 +250,6 @@
 - **Текущий счёт** — `scoreSystem.getScore()`
 - **Максимальный возможный (уровень)** — `scoreSystem.getMaxPossibleScore()`
 - **Максимальный возможный (общий)** — `scoreSystem.getTotalMaxPossibleScore()`
-
-#### Самый длинный текст
-
-Используется `calculateUnifiedBaseFontSize()` который внутри использует `getLongestTexts()` от QuizManager → **max(question, answer, feedback)**
 
 ---
 
@@ -244,23 +273,24 @@
          └─────────────┘
 ```
 
-#### Адаптивные множители шрифта
+#### Расчёт размера шрифта (v3)
 
-| Элемент | Фиксированный множитель | Адаптивный множитель | Финальная формула |
-|---------|------------------------|---------------------|-------------------|
-| Вопрос | 1.0 (не используется) | 1.26–1.54 | `baseFontSize × adaptiveMultiplier` |
-| Кнопки (бабблы) | 1.0 (не используется) | 1.26–1.54 | `baseFontSize × adaptiveMultiplier` |
+Один размер шрифта для обоих бабблов через `calculateTieredFontSizeSimple`:
 
-**Примечание:** CoinBubbleQuiz использует **тот же** `getFontSizeMultiplier()` что и KeyQuestionModal.
-
-#### Самый длинный текст
-
-**Собственный расчет:**
 ```typescript
-const longestText = bubble1Text.length > bubble2Text.length ? bubble1Text : bubble2Text;
+// CoinBubbleQuiz использует calculateTieredFontSizeSimple
+const fontSize = calculateTieredFontSizeSimple(
+  nativeAvailableWidth,
+  nativeAvailableHeight,
+  longestText  // max(bubble1Text, bubble2Text)
+);
 ```
 
-**Базовый размер:** Использует `calculateUnifiedBaseFontSize(scene, 1)` — та же функция что и для модальных окон, но для финального fontSize используется **собственный longestText** из двух утверждений бабблов.
+#### Особенности расчёта
+
+- **Учёт монетки:** Ширина текстовой области уменьшена на 80px (COIN_OFFSET_SPACE) для иконки монеты
+- **Собственный longestText:** `max(bubble1Text, bubble2Text)` по длине
+- **Единый fontSize:** Оба баббла используют одинаковый размер
 
 #### Защита от 9-slice пересечения
 
@@ -277,60 +307,32 @@ if (bubbleBtnWidth < MIN_BUBBLE_SIZE || bubbleBtnHeight < MIN_BUBBLE_SIZE) {
 
 ## Таблица множителей шрифтов по типам модальных окон
 
-| Модальное окно | Адаптивный множитель (`getFontSizeMultiplier`) | Фиксированный множитель | Финальная формула |
-|----------------|-----------------------------------------------|------------------------|-------------------|
-| **KeyQuestionModal** | ✅ **ДА** (1.26 - 1.54) | 1.0 × elementMultiplier | `baseFontSize × adaptiveMultiplier × elementMultiplier` |
-| **CoinBubbleQuiz** | ✅ **ДА** (1.26 - 1.54) | 1.0 (не используется) | `baseFontSize × adaptiveMultiplier` |
-| **PortalModal** | ❌ НЕТ | 1.3 (фиксированный) | `baseFontSize × 1.3` |
-| **GameOverModal** | ❌ НЕТ | 2.0, 1.3 (по элементам) | `baseFontSize × elementMultiplier` |
+| Модальное окно | Система | Логика |
+|----------------|---------|--------|
+| **KeyQuestionModal** | ✅ **Tiered v3** | `calculateTieredFontSizeSimple` (Бинарный поиск) |
+| **CoinBubbleQuiz** | ✅ **Tiered v3** | `calculateTieredFontSizeSimple` (Бинарный поиск) |
+| **PortalModal** | ✅ **Tiered v3** | `calculatePortalTieredFontSize` (Изолированная копия v3) |
+| **GameOverModal** | ✅ **Tiered v3** | `calculateGameOverTieredFontSize` (Изолированная копия v3) |
 
 ---
 
-## Таблица самого длинного текста по модальным окнам
+## Таблица источников текста по модальным окнам
 
-| Модальное окно | Использует calculateUnifiedBaseFontSize | Самый длинный текст (источник) |
-|----------------|----------------------------------------|-------------------------------|
-| KeyQuestionModal | ✅ ДА | `getLongestTexts()` от QuizManager → max(question, answer, feedback) |
-| PortalModal | ✅ ДА | `getLongestTexts()` от QuizManager → max(question, answer, feedback) |
-| GameOverModal | ✅ ДА | `getLongestTexts()` от QuizManager → max(question, answer, feedback) |
-| CoinBubbleQuiz | ✅ ДА | **Собственный расчет** → max(bubble1Text, bubble2Text) |
+| Модальное окно | Источник самого длинного текста |
+|----------------|-------------------------------|
+| KeyQuestionModal | QuizManager → `getLongestTexts()` → max(question, answer, feedback) |
+| PortalModal | QuizManager → `getLongestTexts()` → max(question, answer, feedback) |
+| GameOverModal | QuizManager → `getLongestTexts()` → max(question, answer, feedback) |
+| CoinBubbleQuiz | **Собственный расчет** → max(bubble1Text, bubble2Text) |
 
 ---
 
 ## Константы и настройки
 
-### Множители шрифтов по диапазонам (FONT_SIZE_MULTIPLIERS)
-
-**Файл:** `src/constants/textStyles.ts`
+### Отступы для кнопок
 
 ```typescript
-export const FONT_SIZE_MULTIPLIERS = {
-  ULTRA_NARROW: 1.26,   // Экстремально узкие (AR 0.25-0.45)
-  EXTRA_NARROW: 1.34,   // Очень узкие (AR 0.45-0.6)
-  MOBILE_NARROW: 1.41,  // Узкие мобильные (AR 0.6-0.75)
-  MOBILE_STANDARD: 1.45, // Стандартные мобильные (AR 0.75-1.0)
-  TABLET_SQUARE: 1.49,  // Планшеты, квадратные (AR 1.0-1.3)
-  MONITOR_SMALL: 1.54,   // Небольшие мониторы (AR 1.3-1.6)
-  MONITOR_LARGE: 1.54    // Большие мониторы (AR 1.6+)
-} as const;
-```
-
-### Фиксированные множители для элементов
-
-```typescript
-// KeyQuestionModal
-export const KEY_QUESTION_FONT_SIZE_MULTIPLIER = 1.0;
-export const KEY_FEEDBACK_FONT_SIZE_MULTIPLIER = 1.0;
-export const KEY_BUTTON_FONT_SIZE_MULTIPLIER = 1.0;
-
-// CoinBubbleQuiz (не используются напрямую, множитель из getFontSizeMultiplier)
-export const COIN_QUESTION_FONT_SIZE_MULTIPLIER = 1.0;
-export const COIN_BUTTON_FONT_SIZE_MULTIPLIER = 1.0;
-```
-
-### Адаптивные отступы для кнопок
-
-```typescript
+// src/constants/textStyles.ts
 export const BUTTON_PADDING_BASE_X = 3; // 3px исходной графики → 12px виртуальных (×4)
 export const BUTTON_PADDING_BASE_Y = 2; // 2px исходной графики → 8px виртуальных (×4)
 ```
@@ -358,22 +360,26 @@ const closeX = modalX + modalWidth / 2 - closeSize / 2;
 const closeY = modalY - closeSize / 2;
 ```
 
-### 2. Unified Font System с адаптивными множителями
+### 2. Tiered Font System v3 (Бинарный поиск)
 
 ```typescript
-// Базовый размер (одинаковый для всех элементов)
-const baseFontSize = FontSizeCalculator.calculateUnifiedBaseFontSize(
-    scene, currentLevel
+// Пересчёт в нативные координаты (компенсация setScale(invZoom))
+const invZoom = 1 / scene.cameras.main.zoom;
+const nativeAvailableWidth = blockAvailableWidth / invZoom;
+const nativeAvailableHeight = blockAvailableHeight / invZoom;
+
+// Бинарный поиск максимального fontSize
+import { calculateTieredFontSizeSimple } from '../utils/FontSizeCalculator';
+
+const fontSize = calculateTieredFontSizeSimple(
+  nativeAvailableWidth,
+  nativeAvailableHeight,
+  longestText  // полный текст для wordWrap симуляции
 );
 
-// Адаптивный множитель (для KeyQuestionModal и CoinBubbleQuiz)
-const screenAR = canvasWidth / canvasHeight;
-const adaptiveMultiplier = getFontSizeMultiplier(screenAR);
-
 // Применение
-const commonFontSize = baseFontSize * adaptiveMultiplier;
-title.setFontSize(commonFontSize);
-buttons.forEach(btn => btn.setFontSize(commonFontSize));
+text.setFontSize(`${fontSize}px`);
+text.setScale(invZoom);  // компенсация зума для чёткости
 ```
 
 ### 3. Компенсация зума
@@ -432,6 +438,9 @@ window.logAspectRatioRange(1920, 1080) // Monitor Large
 ### Шаблон
 
 ```typescript
+import { calculateTieredFontSizeSimple } from '../utils/FontSizeCalculator';
+import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
+
 export default class NewModal extends Phaser.GameObjects.Container {
     private background: NineSliceBackground;
     private closeButton: Button;
@@ -461,15 +470,21 @@ export default class NewModal extends Phaser.GameObjects.Container {
     }
 
     private createContent(): void {
-        // Unified Font System с адаптивным множителем
-        const baseFontSize = FontSizeCalculator.calculateUnifiedBaseFontSize(...);
-        const adaptiveMultiplier = getFontSizeMultiplier(screenAR);
-        const finalFontSize = baseFontSize * adaptiveMultiplier;
+        // Tiered Font System v3 (Бинарный поиск)
+        const invZoom = 1 / this.scene.cameras.main.zoom;
+        const nativeWidth = contentWidth / invZoom;
+        const nativeHeight = contentHeight / invZoom;
+
+        const fontSize = calculateTieredFontSizeSimple(
+          nativeWidth,
+          nativeHeight,
+          options.longestText
+        );
 
         this.content = this.scene.add.text(0, 0, options.text, {
-            fontSize: `${finalFontSize}px`
+            fontSize: `${fontSize}px`
         });
-        this.content.setScale(1 / this.scene.cameras.main.zoom);
+        this.content.setScale(invZoom);  // Компенсация зума
         this.add(this.content);
     }
 
@@ -533,12 +548,13 @@ export default class NewModal extends Phaser.GameObjects.Container {
 2. `close()` вызывает `UIManager.closeModal(this)`
 3. Нет blockers или locked state
 
-### Шрифты слишком мелкие на узких экранах
+### Шрифты слишком мелкие/крупные
 
 **Проверьте:**
-1. Используется `getFontSizeMultiplier()` для адаптивного множителя
-2. Значения `FONT_SIZE_MULTIPLIERS` в `textStyles.ts` актуальны
-3. Логи показывают правильный диапазон aspect ratio
+1. Используется `calculateTieredFontSizeSimple` (или изолированная копия)
+2. Переданы нативные координаты (разделены на `invZoom`)
+3. `longestText` содержит полный текст (для корректной wordWrap симуляции)
+4. `LINE_HEIGHT_RATIO` в FontSizeCalculator.ts настроен правильно
 
 ---
 
@@ -552,18 +568,19 @@ export default class NewModal extends Phaser.GameObjects.Container {
 
 ## История изменений
 
+### Версия 3.0 (2026-02-16)
+- ✅ **ТИРОВАНАЯ СИСТЕМА ШРИФТОВ (Tiered Font System)** — бинарный поиск вместо адаптивных множителей
+- ✅ **Убраны таблицы множителей** — автоматическая адаптация без FONT_SIZE_MULTIPLIERS
+- ✅ **Обновлён шаблон модального окна** — использование calculateTieredFontSizeSimple
+- ✅ **Актуализированы все секции** — соответствие коду v3
+
 ### Версия 2.0 (2026-02-06)
 - ✅ **СИСТЕМА 7 ДИАПАЗОНОВ ASPECT RATIO** — вместо бинарной portrait/landscape
 - ✅ **АДАПТИВНЫЕ МНОЖИТЕЛИ ШРИФТОВ** — разные для каждого диапазона (1.26–1.54)
-- ✅ **Увеличение множителей на ~10%** — для лучшей читаемости
-- ✅ **Extra Narrow шире на 5%** — aspect ratio 0.50 → 0.525
-- ✅ **CoinBubbleQuiz использует getFontSizeMultiplier()** — унификация с модалами
-- ✅ **Отключены логи pointerover** — для чистоты консоли
-- ✅ **Таблицы множителей и longestText** — для наглядности
+- ⚠️ *Устарело в v3.0*
 
 ### Версия 1.0 (2026-01-28)
 - Первичная документация
-- Unified Font System
 - Grid Snapping
 - Lifecycle паттерны
 
@@ -571,5 +588,6 @@ export default class NewModal extends Phaser.GameObjects.Container {
 
 | Дата | Версия | Изменение |
 |------|--------|-----------|
+| 2026-02-16 | 3.0 | Tiered Font System (бинарный поиск), убраны множители |
 | 2026-02-06 | 2.0 | Система 7 диапазонов aspect ratio, адаптивные множители |
 | 2026-01-28 | 1.0 | Первичная документация |

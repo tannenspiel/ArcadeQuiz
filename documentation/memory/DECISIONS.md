@@ -1074,3 +1074,120 @@ logger.log('MODAL_SIZE', `Selected range: ${selectedRange?.name || 'fallback'} (
 
 **Template for new decisions:**
 
+
+---
+
+## Decision 014: Standardized "Tiered Font System (v3)" for All Modals
+
+**Date:** 2026-02-16
+**Status:** Accepted
+**Type:** Architecture / UI Scaling
+
+### Context
+- The project had two competing font scaling systems:
+    1. **v2 (Legacy):** Relied on complex lookup tables for 7 aspect ratio ranges and "Adaptive Multipliers" (1.26 - 1.54). Used in `PortalModal` and `GameOverModal`.
+    2. **v3 (Modern):** Uses direct **binary search** (`calculateTieredFontSizeSimple`) to find the mathematically largest font size that fits a given block. Used in `KeyQuestionModal` and `CoinBubbleQuiz`.
+- **Problems with v2:**
+    - Hard to maintain (magic numbers in tables).
+    - Didn't guarantee text fit (multipliers were estimates).
+    - Required manual tuning for every new screen ratio.
+    - Resulted in text being too small on some devices or overflowing on others.
+
+### Decision
+**Standardize on the v3 Tiered Font System (Binary Search) for ALL modal windows.**
+
+1. **Algorithm:**
+   - Calculate available width/height for the text block.
+   - Run binary search (10px to 72px) to find the max `fontSize`.
+   - Simulated `wordWrap` at each step to check if text fits vertically.
+   - **No aspect ratio tables needed** — the algorithm naturally adapts.
+
+2. **Implementation:**
+   - `KeyQuestionModal`: Uses shared `calculateTieredFontSizeSimple`.
+   - `CoinBubbleQuiz`: Uses shared `calculateTieredFontSizeSimple`.
+   - `PortalModal`: Uses isolated copy `calculatePortalTieredFontSize`.
+   - `GameOverModal`: Uses isolated copy `calculateGameOverTieredFontSize`.
+
+3. **Documentation:**
+   - Removed references to "7 Range Aspect Ratio multipliers" from `MODAL_GUIDE.md`.
+   - Updated `FONT_SIZING_SYSTEM.md` to declare v3 as the standard.
+
+### Consequences
+**Positive:**
+- ✅ **Guaranteed Fit:** Text never overflows its container.
+- ✅ **Maximizes Legibility:** Uses the largest possible font for the available space.
+- ✅ **Automatic Adaptation:** Works for any aspect ratio (ultrawide, square, mobile) without config changes.
+- ✅ **Simplified Config:** Removed complex multiplier tables. Only `LINE_HEIGHT_RATIO` and `contentArea` percentages matter.
+
+**Negative:**
+- ❌ **Slight Performance Cost:** Binary search (approx 6-8 iterations) is slightly heavier than a simple multiplication. However, it only runs **once** when the modal opens, which is negligible (sub-millisecond).
+- ❌ **"Unified Base Font Size" is less relevant:** The concept of a single "base font size" for the whole app is weakened, as each block now calculates its own optimal size. (This is actually a benefit for fitting, but a change in philosophy).
+
+**Mitigation:**
+- `calculateUnifiedBaseFontSize` is kept as a fallback or for initial sizing estimates but final sizing is always overridden by the tiered system.
+
+---
+
+## Decision 015: Documentation Synchronization - Remove Outdated v2 References
+
+**Date:** 2026-02-16
+**Status:** Accepted
+**Type:** Documentation / Maintenance
+
+### Context
+- MODAL_GUIDE.md v2.0 still contained references to the deprecated v2 system:
+  - "Система 7 диапазонов aspect ratio" mentioned in Overview
+  - "Адаптивные множители шрифтов по типу экрана" mentioned in Overview
+  - Tables with multipliers (1.26–1.54) that are no longer used
+  - References to `calculateUnifiedBaseFontSize()` in code examples
+  - Pattern "Unified Font System с адаптивными множителями" in templates
+- FONT_SIZING_SYSTEM.md v3.0 didn't mention isolated functions used by PortalModal and GameOverModal
+- Code analysis revealed:
+  - `calculatePortalTieredFontSize` — isolated copy of v3 algorithm
+  - `calculateGameOverTieredFontSize` — isolated copy of v3 algorithm
+  - KeyQuestionModal has dead code: calls `calculateUnifiedBaseFontSize()` but doesn't use the result
+
+### Decision
+**Update MODAL_GUIDE.md to v3.0 and FONT_SIZING_SYSTEM.md to v3.1 to match current code.**
+
+1. **MODAL_GUIDE.md → v3.0:**
+   - Remove all mentions of "7 диапазонов aspect ratio" and "адаптивных множителей"
+   - Update Overview to reflect v3 Tiered Font System
+   - Remove multiplier tables from all modal sections
+   - Replace "Unified Font System" pattern with "Tiered Font System v3"
+   - Update modal creation template to use `calculateTieredFontSizeSimple`
+
+2. **FONT_SIZING_SYSTEM.md → v3.1:**
+   - Add section describing isolated functions (`calculatePortalTieredFontSize`, `calculateGameOverTieredFontSize`)
+   - Update component table to mark isolated copies
+   - Add version 3.1 to history
+
+### Consequences
+**Positive:**
+- ✅ Documentation now accurately reflects code state
+- ✅ New developers won't be confused by outdated multiplier references
+- ✅ Isolated functions are properly documented
+- ✅ Code examples match actual implementation
+
+**Negative:**
+- ❌ Dead code in KeyQuestionModal remains (uses `calculateUnifiedBaseFontSize` but ignores result)
+- ❌ Isolated functions create code duplication (same algorithm in 3 places)
+
+**Mitigation:**
+- Dead code in KeyQuestionModal is minor (only used for logging, no functional impact)
+- Isolated functions allow independent evolution of PortalModal and GameOverModal
+- Consider consolidating to shared `calculateTieredFontSizeSimple` in future refactoring
+
+### Implementation
+- Modified `documentation/main/ui/MODAL_GUIDE.md`:
+  - Updated to v3.0
+  - Removed all v2 multiplier references
+  - Updated all code examples
+- Modified `documentation/main/ui/FONT_SIZING_SYSTEM.md`:
+  - Updated to v3.1
+  - Added isolated functions documentation
+- Updated memory files (CONTEXT.md, HISTORY.md, DECISIONS.md)
+
+**Testing:**
+- Documentation review complete
+- Code analysis confirms v3 usage in all modals
