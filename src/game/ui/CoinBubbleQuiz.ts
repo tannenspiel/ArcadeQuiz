@@ -44,7 +44,8 @@ import {
   calculateBaseFontSize,
   calculateUnifiedBaseFontSize,
   getButtonPadding,
-  getFontSizeMultiplier
+  getFontSizeMultiplier,
+  getCoinBubbleFontMultiplier
 } from '../utils/FontSizeCalculator';
 import { calculateModalSize } from './ModalSizeCalculator';
 import { NineSliceBackground } from './NineSliceBackground';
@@ -166,13 +167,37 @@ export class CoinBubbleQuiz {
         'CoinBubbleQuiz' // Имя модального окна для логов
       );
 
-      // ✅ Derived Bubble Dimensions (УВЕЛИЧЕНЫ - ДИНАМИЧЕСКИ)
-      // Width: 95% of modal width
-      // Height: 20% of modal height (было 1/5, теперь 1/5 = 20%)
+      // === ЕДИНОЕ ПОЛЕ ОТСТУПОВ (как в KeyQuestionModal) ===
+      const MODAL_INTERNAL_PADDING_PERCENT = 0.08; // 8% от меньшей стороны
+      const MODAL_INTERNAL_PADDING_MIN = 30; // Минимум 30 виртуальных пикселей
+
+      const modalMinSize = Math.min(modalSize.width, modalSize.height);
+      const internalPadding = Math.max(
+        MODAL_INTERNAL_PADDING_MIN,
+        modalMinSize * MODAL_INTERNAL_PADDING_PERCENT
+      );
+
+      // Доступная область для контента
+      const contentAreaWidth = modalSize.width - (internalPadding * 2);
+      const contentAreaHeight = modalSize.height - (internalPadding * 2);
+
+      // === УНИФИЦИРОВАННЫЙ РАСЧЁТ ВЫСОТЫ БАББЛОВ ===
+      // Используем ту же формулу, что и для блоков в KeyQuestionModal
+      // ⚠️ ВАЖНО: totalBlocks = 5 чтобы баббл был равен ОДНОМУ блоку из 5 в KeyQuestionModal
+      // Каждый баббл = 1/5 высоты контента (20%), а не 1/2 (50%)
+      const totalBlocks = 5; // 5 блоков как в KeyQuestionModal
+      const totalSpacings = totalBlocks - 1; // 4 отступа
+      const bubbleSpacing = internalPadding / 4; // Отступ = internalPadding / 4 (как в KeyQuestionModal)
+
+      const totalContentHeight = contentAreaHeight;
+      const bubbleHeight = (totalContentHeight - (totalSpacings * bubbleSpacing)) / totalBlocks;
+
+      // ✅ Width: 95% of modal width (оставлено как было)
+      // ✅ Height: УНИФИЦИРОВАН с блоками KeyQuestionModal!
       // Используем snapToGridDouble для выравнивания к сетке и соблюдения MIN_BUBBLE_SIZE
 
       let bubbleBtnWidth = snapToGridDouble(modalSize.width * 0.95);
-      let bubbleBtnHeight = snapToGridDouble(modalSize.height * 0.2);
+      let bubbleBtnHeight = snapToGridDouble(bubbleHeight);
 
       // ✅ ЗАЩИТА ОТ ПЕРЕСЕЧЕНИЯ НАРЕЗОК 9-SLICE
       // Проверяем, что размер баббла не меньше минимального (120px = 3 × tileSize)
@@ -218,9 +243,9 @@ export class CoinBubbleQuiz {
         3 // maxLines
       );
 
-      // ✅ АДАПТИВНЫЙ МНОЖИТЕЛЬ: используем getFontSizeMultiplier вместо фиксированного 1.3
+      // ✅ АДАПТИВНЫЙ МНОЖИТЕЛЬ: используем getCoinBubbleFontMultiplier вместо фиксированного 1.3
       const screenAR = canvasWidth / canvasHeight;
-      const adaptiveMultiplier = getFontSizeMultiplier(screenAR);
+      const adaptiveMultiplier = getCoinBubbleFontMultiplier(screenAR);
       const fontSize = bubbleFontSizeRaw * adaptiveMultiplier;
 
       logger.log('COIN_BUBBLE_QUIZ', `Unified sizing: baseFont=${baseFontSize.toFixed(2)}px, bubbleRaw=${bubbleFontSizeRaw.toFixed(2)}px, final=${fontSize.toFixed(2)}px (×${adaptiveMultiplier.toFixed(2)})`);

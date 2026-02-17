@@ -819,6 +819,10 @@ LoadingScene → 0-50% (assets) → 50% stuck for 3s → 60% → game starts
 
 ### Implementation Details
 
+---
+
+**Template for new decisions:**
+
 **Scene Management:**
 ```typescript
 // LoadingScene - launch MainScene in parallel
@@ -986,6 +990,85 @@ logger.log('MODAL_SIZE', `Selected range: ${selectedRange?.name || 'fallback'} (
 - All 9 ModalSizeCalculator tests pass
 - Build successful
 - Awaiting browser testing on actual devices
+
+---
+
+**Template for new decisions:**
+
+---
+
+## Decision 015: Fix Aspect Ratio Range Gap (TABLET_SQUARE Duplicated MOBILE_STANDARD)
+
+**Date:** 2026-02-13
+**Status:** Accepted
+**Type:** Bug Fix
+
+### Context
+- ModalSizeCalculator.ts had overlapping aspect ratio ranges
+- `MOBILE_STANDARD`: minAR=0.75, maxAR=1.0
+- `TABLET_SQUARE`: minAR=0.75, maxAR=1.0 — **DUPLICATE!**
+- This created a **gap** between 1.0 and 1.3 for screenAR values
+- For screenAR=1.13 (canvas=1476×1305), no matching range was found
+- Result: "Unknown" fallback with multiplier=1.3 instead of proper range selection
+
+### Problem
+```
+⚠️ ASPECT RANGE: Unknown | canvas=1476×1305 | screenAR=1.13
+```
+
+**Root Cause:** `find()` returns first matching range, so TABLET_SQUARE was never selected since MOBILE_STANDARD came first in array.
+
+### Symptoms
+1. For screens with aspect ratio 1.0-1.3 (tablets, wide mobile):
+   - "Unknown" range logged
+   - Fallback multiplier 1.3 used (intentionally correct)
+   - But proper TABLET_SQUARE range (1.49 multiplier) was never chosen!
+
+2. Font size calculation worked but was inconsistent:
+   - Wide screens got same multiplier as MOBILE_STANDARD (1.45)
+   - But should have gotten 1.49 (before fix) or 1.3 (after fix)
+
+### Decision
+**Fix TABLET_SQUARE range to cover gap 1.0-1.3**
+- Change minAR from 0.75 to 1.0
+- Change maxAR from 1.0 to 1.3
+- This creates proper progression: MOBILE_STANDARD (0.75-1.0) → TABLET_SQUARE (1.0-1.3) → MONITOR_SMALL (1.3-1.6)
+
+**Bonus:** Reduce font multipliers for wide screens to 1.3
+- User reported fonts too large on wide screens
+- Changed all wide screen multipliers from 1.49/1.54 to 1.3
+- Now all wide screens (tablet+) have same multiplier as PortalModal (1.3)
+
+### Consequences
+**Positive:**
+- ✅ screenAR=1.13 now correctly identifies as TABLET_SQUARE
+- ✅ No more "Unknown" fallback for tablet range
+- ✅ Consistent font sizing across all screen sizes
+- ✅ Wide screen fonts reduced to comfortable size (1.3x instead of 1.49/1.54)
+
+**Negative:**
+- ❌ Wide screens have same multiplier as narrow (less adaptive)
+- ❌ Might be slightly smaller text on very wide screens than before
+
+**Mitigation:**
+- Monitor user feedback on font sizes
+- Can adjust multipliers per-range if needed
+- 1.3 is consistent with PortalModal approach
+
+### Implementation
+- Modified `src/game/ui/ModalSizeCalculator.ts`:
+  - TABLET_SQUARE: minAR=1.0, maxAR=1.3 (was 0.75-1.0)
+
+- Modified `src/constants/textStyles.ts`:
+  - TABLET_SQUARE: 1.49 → 1.3
+  - MONITOR_SMALL: 1.54 → 1.3
+  - MONITOR_LARGE: 1.54 → 1.3
+
+- Modified `src/tests/unit/utils/FontSizeCalculator.test.ts`:
+  - Updated expectations to match new values (1.3 instead of 1.49/1.54)
+  - Updated range test (1.26-1.45 instead of 1.26-1.54)
+
+- All 1821 tests pass
 
 ---
 

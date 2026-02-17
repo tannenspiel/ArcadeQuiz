@@ -6,6 +6,13 @@
 import Phaser from 'phaser';
 import { Button } from './Button';
 import {
+  calculateBaseFontSize,
+  calculateButtonFontSize,
+  calculateUnifiedBaseFontSize,
+  getButtonPadding,
+  calculateGameOverTieredFontSize
+} from '../utils/FontSizeCalculator';
+import {
   DEFAULT_FONT_FAMILY,
   GAMEOVER_TITLE_FONT_STYLE,
   GAMEOVER_SCORE_FONT_STYLE,
@@ -18,15 +25,19 @@ import {
   GLOBAL_QUESTION_BACKGROUND_COLOR,
   KEY_FEEDBACK_FONT_STYLE,
   KEY_FEEDBACK_COLOR,
-  UI_TEXT
+  UI_TEXT,
+  GAMEOVER_TITLE_FONT_MULTIPLIER,
+  GAMEOVER_FEEDBACK_FONT_MULTIPLIER,
+  GAMEOVER_SCORE_FONT_MULTIPLIER,
+  GAMEOVER_BUTTON_FONT_MULTIPLIER
 } from '../../constants/textStyles';
 import { ACTOR_SIZES, BASE_SCALE, DEPTHS } from '../../constants/gameConstants';
 import { calculateModalSize } from './ModalSizeCalculator';
-import { calculateBaseFontSize, calculateButtonFontSize, calculateUnifiedBaseFontSize } from '../utils/FontSizeCalculator';
 import { AB_TESTING } from '../../config/gameConfig';
 import { NineSliceBackground } from './NineSliceBackground';
 import { logger } from '../../utils/Logger';
 import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
+import { DEBUG_MODAL_BOUNDS } from '../../config/debugConfig';
 
 export enum GameOverType {
   WIN_GAME = 'win_game',      // Выигрыш всей игры (YOU WIN)
@@ -107,7 +118,6 @@ export class GameOverModal {
     const canvasHeight = canvasRect.height;
 
     // ✅ Используем calculateModalSize с теми же параметрами, что и KeyQuestionModal
-    // IMPORTANT: Используем cam.width и cam.height напрямую (без деления на zoom)
     let modalSize = calculateModalSize(
       cam.width,      // Camera width (виртуальные пиксели)
       cam.height,     // Camera height (виртуальные пиксели)
@@ -117,9 +127,7 @@ export class GameOverModal {
       'GameOverModal' // Имя модального окна для логов
     );
 
-    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (используем ModalPositioningHelper)
-    // Чтобы избежать дробных пикселей при BASE_SCALE=4, координаты и размеры должны быть кратны 4 (или 8 для центрирования)
-
+    // ✅ GRID SNAPPING: Привязка к пиксельной сетке
     const modalWidth = snapToGridDouble(modalSize.width);
     const modalHeight = snapToGridDouble(modalSize.height);
     const modalX = snapToGrid(modalSize.x);
@@ -139,16 +147,10 @@ export class GameOverModal {
     // Доступная область для контента
     const contentAreaWidth = modalWidth - (internalPadding * 2);
     const contentAreaHeight = modalHeight - (internalPadding * 2);
-
-    // Границы контентной области
-    const contentAreaLeft = modalX - modalWidth / 2 + internalPadding;
-    const contentAreaRight = modalX + modalWidth / 2 - internalPadding;
-    const contentAreaTop = modalY - modalHeight / 2 + internalPadding;
     const contentAreaBottom = modalY + modalHeight / 2 - internalPadding;
 
     // Фон
     if (AB_TESTING.USE_NINE_SLICE_MODAL) {
-      logger.log('MODAL_UI', 'GameOverModal: Using NineSliceBackground');
       this.background = new NineSliceBackground(
         this.scene,
         modalX,
@@ -157,25 +159,27 @@ export class GameOverModal {
         modalHeight
       ).setDepth(DEPTHS.SCREEN.MODAL_BG).setScrollFactor(0);
     } else {
-      logger.log('MODAL_UI', 'GameOverModal: Using standard Rectangle background');
       this.background = this.scene.add.rectangle(
         modalX, modalY, modalWidth, modalHeight,
         0x1a202c, 0.98
       ).setDepth(DEPTHS.SCREEN.MODAL_BG).setScrollFactor(0).setStrokeStyle(4, 0x4a5568);
     }
 
-    // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
-    // ✅ Устанавливаем разрешение = 1 для пиксельного шрифта
+    // ✅ Устанавливаем разрешение для четкости текста
     const textResolution = 1;
 
     // ✅ ОТСТУП МЕЖДУ ЭЛЕМЕНТАМИ (одинаковый для всех)
-    // Отступ между элементами = половина отступа от краев модального окна
     let buttonSpacing = internalPadding / 4;
 
     // ✅ РАСЧЕТ ОБЛАСТЕЙ: ДЕЛИМ РАБОЧУЮ ОБЛАСТЬ НА 6 РАВНЫХ ЧАСТЕЙ
-    // Всего блоков: 1 (заголовок) + 1 (фидбэк) + 1 (счетчик) + 1 (персонаж) + 2 (кнопки) = 6
+    // 6. Title
+    // 5. Feedback
+    // 4. Score
+    // 3. Character
+    // 2. Next Level (или пусто)
+    // 1. Restart
     const totalBlocks = 6;
-    const totalSpacings = totalBlocks - 1; // 5 отступов
+    const totalSpacings = totalBlocks - 1;
 
     // Общая высота рабочей области
     const totalContentHeight = contentAreaHeight;
@@ -183,21 +187,10 @@ export class GameOverModal {
     // Высота одного блока (с учетом отступов)
     const blockHeight = (totalContentHeight - (totalSpacings * buttonSpacing)) / totalBlocks;
 
-    logger.log('MODAL_SIZE', `GameOverModal Layout: totalBlocks=${totalBlocks}, totalSpacings=${totalSpacings}, blockHeight=${blockHeight.toFixed(1)}, totalContentHeight=${totalContentHeight.toFixed(1)}`);
-
-    // Высоты для каждого блока (все одинаковые)
-    const titleAreaHeight = blockHeight;
-    const feedbackAreaHeight = blockHeight;
-    const scoreAreaHeight = blockHeight;
-    const spriteAreaHeight = blockHeight;
-    const buttonHeight = blockHeight;
-
     // ✅ РАСЧЕТ ПОЗИЦИЙ: создаем массив позиций снизу вверх
-    // Порядок снизу вверх: кнопка "Следующий уровень" (index 0, только для WIN_LEVEL), кнопка "Рестарт" (index 1), персонаж (index 2), счетчик (index 3), заголовок (index 4)
     const blockPositions: number[] = [];
-    let currentY = contentAreaBottom; // Начинаем с нижнего края
+    let currentY = contentAreaBottom;
 
-    // Рассчитываем позиции снизу вверх
     for (let i = 0; i < totalBlocks; i++) {
       currentY -= blockHeight / 2; // Центр текущего блока
       blockPositions.push(currentY);
@@ -207,202 +200,204 @@ export class GameOverModal {
       }
     }
 
-    // Индексы: [0, 1, 2, 3, 4, 5]
-    const titleY = blockPositions[5]; // Заголовок - самый верхний
-    const feedbackY = blockPositions[4]; // Фидбэк
-    const scoreY = blockPositions[3]; // Счетчик
-    const spriteY = blockPositions[2]; // Персонаж
-    const nextLevelButtonY = blockPositions[1]; // Кнопка "Следующий уровень"
-    const restartButtonY = blockPositions[0]; // Кнопка Рестарт - самая нижняя
+    // Индексы блоки (снизу вверх):
+    // 0: Restart Button
+    // 1: Next Level Button (или пусто)
+    // 2: Character
+    // 3: Score
+    // 4: Feedback
+    // 5: Title
+    const titleY = blockPositions[5];
+    const feedbackY = blockPositions[4];
+    const scoreY = blockPositions[3];
+    const charY = blockPositions[2];
+    const nextLevelButtonY = blockPositions[1];
+    const restartButtonY = blockPositions[0];
 
-    // ✅ РАСЧЕТ ЕДИНОГО БАЗОВОГО РАЗМЕРА ШРИФТА
-    // Используем calculateUnifiedBaseFontSize для унификации с KeyQuestionModal/PortalModal
-    // ⚠️ ВАЖНО: Для GameOverModal ВСЕГДА используем level=1, независимо от типа (WIN_GAME/WIN_LEVEL/LOSE)
-    // Это гарантирует консистентный размер шрифта между всеми тремя типами модального окна
-    const baseFontSize = calculateUnifiedBaseFontSize(this.scene, 1); // ✅ Фиксированный level=1 для унификации
-    logger.log('MODAL_SIZE', `GameOverModal: baseFontSize (unified, level=1): ${baseFontSize.toFixed(2)}px`);
+    // ✅ ЕДИНЫЙ PADDING ДЛЯ БЛОКОВ (как в KeyQuestionModal)
+    const blockPadding = getButtonPadding(contentAreaWidth, blockHeight);
+    const blockAvailableWidth = blockPadding.availableWidth;
+    const blockAvailableHeight = blockPadding.availableHeight;
 
-    // Используем реальный текст для расчета размеров элементов
-    const titleTextForCalculation = this.getTitleText();
+    // ✅ FIX: Пересчитываем в НАТИВНЫЕ координаты
+    const nativeAvailableWidth = blockAvailableWidth / invZoom;
+    const nativeAvailableHeight = blockAvailableHeight / invZoom;
 
-    logger.log('MODAL_SIZE', `GameOverModal: baseFontSize (unified): ${baseFontSize.toFixed(2)}px`);
+    // ═══════════════════════════════════════════════════════
+    // ✅ РАСЧЕТ ШРИФТОВ (Independent GameOver Logic)
+    // ═══════════════════════════════════════════════════════
 
-    // ✅ ЗАГОЛОВОК: используем baseFontSize напрямую (унификация)
-    const titleFontSizeRaw = baseFontSize;
-    logger.log('MODAL_SIZE', `GameOverModal: Title: base=${baseFontSize.toFixed(2)}px, final=${titleFontSizeRaw.toFixed(2)}px`);
+    // Title
+    const titleTextContent = this.getTitleText();
+    const titleFontSize = calculateGameOverTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      titleTextContent
+    ) * GAMEOVER_TITLE_FONT_MULTIPLIER;
 
-    // ✅ КНОПКИ: используем тот же размер, что и для текстовых элементов (как в KeyQuestionModal)
-    const buttonWidth = contentAreaWidth;
-    logger.log('MODAL_SIZE', `GameOverModal: buttonWidth: ${buttonWidth}, buttonHeight: ${buttonHeight}`);
+    // Feedback
+    const feedbackTextContent = this.config.feedbackText || ' ';
+    const feedbackFontSize = calculateGameOverTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      feedbackTextContent
+    ) * GAMEOVER_FEEDBACK_FONT_MULTIPLIER;
 
-    // ✅ Используем baseFontSize напрямую для кнопок, без отдельного расчёта
-    let buttonFontSizeRaw = baseFontSize;
-    logger.log('MODAL_SIZE', `GameOverModal: Button: base=${baseFontSize.toFixed(2)}px, final=${buttonFontSizeRaw.toFixed(2)}px`);
+    // Score (Block 3 - Standard Text Block)
+    const scoreTextContent = `${UI_TEXT.SCORE_PREFIX}${this.config.score}`;
 
-    // ✅ Находим unified размер для всех элементов (заголовок, кнопки)
-    // ⚠️ ВАЖНО: feedback и score НЕ включаем в unifiedFontSize!
-    // Они используют свои множители и должны адаптироваться к unified size, а не определять его.
-    let unifiedFontSize = Math.min(titleFontSizeRaw, buttonFontSizeRaw);
-    logger.log('MODAL_SIZE', `GameOverModal: unifiedFontSize (min of title/button): ${unifiedFontSize.toFixed(2)}px, feedback/score excluded`);
+    const scoreFontSize = calculateGameOverTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      scoreTextContent
+    ) * GAMEOVER_SCORE_FONT_MULTIPLIER;
 
-    // ✅ КОНСТАНТЫ МНОЖИТЕЛЕЙ для GameOverModal (унифицировано с KeyQuestionModal)
-    const TITLE_SCORE_MULTIPLIER = 2.0;   // GAME OVER, LEVEL COMPLETE, Score - 2x
-    const BUTTON_MULTIPLIER = 1.3;         // Кнопки - 1.3x (как в KeyQuestionModal)
-    const FEEDBACK_MULTIPLIER = 1.3;       // ✅ Фидбэк унифицирован с KeyQuestionModal - 1.3x
+    // Buttons
+    // Restart
+    const restartBtnText = 'ИГРАТЬ ЗАНОВО';
+    const restartBtnFontSize = calculateGameOverTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      restartBtnText
+    ) * GAMEOVER_BUTTON_FONT_MULTIPLIER;
 
-    // ✅ Применяем множители
-    const titleFontSize = unifiedFontSize * TITLE_SCORE_MULTIPLIER;
-    const scoreFontSize = unifiedFontSize * TITLE_SCORE_MULTIPLIER;
-    const buttonFontSize = unifiedFontSize * BUTTON_MULTIPLIER;
-    const feedbackFontSize = unifiedFontSize * FEEDBACK_MULTIPLIER; // ✅ Унифицирован с KeyQuestionModal
+    // Next Level
+    const nextLevelBtnText = 'СЛЕДУЮЩИЙ УРОВЕНЬ';
+    let nextLevelBtnFontSize = restartBtnFontSize; // Default
+    if (this.config.type === GameOverType.WIN_LEVEL) {
+      nextLevelBtnFontSize = calculateGameOverTieredFontSize(
+        nativeAvailableWidth,
+        nativeAvailableHeight,
+        nextLevelBtnText
+      ) * GAMEOVER_BUTTON_FONT_MULTIPLIER;
+    }
 
-    logger.log('MODAL_SIZE', `GameOverModal: TITLE_SCORE_MULTIPLIER: ${TITLE_SCORE_MULTIPLIER}, BUTTON_MULTIPLIER: ${BUTTON_MULTIPLIER}, FEEDBACK_MULTIPLIER: ${FEEDBACK_MULTIPLIER}, FINAL SIZES: title=${titleFontSize.toFixed(2)}, score=${scoreFontSize.toFixed(2)}, button=${buttonFontSize.toFixed(2)}, feedback=${feedbackFontSize.toFixed(2)}`);
+    // Unified Button Font (min)
+    const buttonFontSize = Math.min(restartBtnFontSize, nextLevelBtnFontSize);
 
-    // ✅ Заголовок - самый верхний блок
-    const titleTextToDisplay = this.getTitleText();
+    // ═══════════════════════════════════════════════════════
+    // ✅ UI RENDERING
+    // ═══════════════════════════════════════════════════════
 
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
-    const titleTextX = Math.round(modalX);
-    const titleTextY = Math.round(titleY);
-
+    // 1. Title
     this.titleText = this.scene.add.text(
-      titleTextX, // ✅ Округлено до целого пикселя
-      titleTextY, // ✅ Округлено до целого пикселя
-      titleTextToDisplay,
+      Math.round(modalX),
+      Math.round(titleY),
+      titleTextContent,
       {
         fontSize: `${Math.round(titleFontSize)}px`,
-        fontFamily: 'monospace', // ✅ Моноширинный шрифт для четкости
+        fontFamily: DEFAULT_FONT_FAMILY, // Default font
         fontStyle: GAMEOVER_TITLE_FONT_STYLE,
         color: this.getTitleColor(),
-        wordWrap: { width: contentAreaWidth * 0.9 }, // ✅ v2 - 90% ширины для отступов по бокам
+        wordWrap: { width: nativeAvailableWidth },
         align: 'center'
       }
     ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
+    this.titleText.setResolution(textResolution).setScale(invZoom);
 
-    // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
-    this.titleText.setResolution(textResolution);
-
-    // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
-    this.titleText.setScale(invZoom);
-
-    // ✅ Логирование размера шрифта заголовка
-    logger.log('MODAL_SIZE', `GameOverModal: Title text: fontSize=${titleFontSize.toFixed(2)}px, text="${titleTextToDisplay}"`);
-
-    // ✅ Блок фидбэка (только если передан текст)
+    // 2. Feedback
     if (this.config.feedbackText) {
-      const feedbackX = Math.round(modalX);
-      const roundedFeedbackY = Math.round(feedbackY);
-
-      // ✅ wordWrap width должен учитывать invZoom для правильного переноса строк
-      // Когда применяем setScale(invZoom), ширина текста масштабируется, поэтому wordWrap.width
-      // нужно разделить на invZoom, чтобы перенос строк происходил в нужном месте
-      const feedbackWordWrapWidth = (contentAreaWidth * 0.95) / invZoom; // 95% ширины с компенсацией zoom
-
       this.feedbackText = this.scene.add.text(
-        feedbackX,
-        roundedFeedbackY,
-        this.config.feedbackText,
+        Math.round(modalX),
+        Math.round(feedbackY),
+        feedbackTextContent,
         {
           fontSize: `${Math.round(feedbackFontSize)}px`,
-          fontFamily: 'monospace', // ✅ Моноширинный шрифт для четкости
-          fontStyle: KEY_FEEDBACK_FONT_STYLE, // ✅ Унифицировано с KeyQuestionModal (bold italic)
-          color: KEY_FEEDBACK_COLOR, // ✅ Унифицировано с KeyQuestionModal
-          wordWrap: { width: feedbackWordWrapWidth },
+          fontFamily: DEFAULT_FONT_FAMILY,
+          fontStyle: KEY_FEEDBACK_FONT_STYLE,
+          color: KEY_FEEDBACK_COLOR,
+          wordWrap: { width: nativeAvailableWidth },
           align: 'center'
         }
       ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_BUTTON).setScrollFactor(0);
-
-      this.feedbackText.setResolution(textResolution);
-
-      // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
-      this.feedbackText.setScale(invZoom);
-
-      logger.log('MODAL_SIZE', `GameOverModal: Feedback wordWrap width: ${feedbackWordWrapWidth.toFixed(1)}px (contentAreaWidth=${contentAreaWidth.toFixed(1)}, invZoom=${invZoom.toFixed(3)})`);
+      this.feedbackText.setResolution(textResolution).setScale(invZoom);
     }
 
-    // ✅ Счетчик очков
-    const scoreTextToDisplay = `${UI_TEXT.SCORE_PREFIX}${this.config.score}`;
-
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
-    const scoreTextX = Math.round(modalX);
-    const scoreTextY = Math.round(scoreY);
-
+    // 3. Score (Block 3) - Standard Text Block
     this.scoreText = this.scene.add.text(
-      scoreTextX, // ✅ Округлено до целого пикселя
-      scoreTextY, // ✅ Округлено до целого пикселя
-      scoreTextToDisplay,
+      Math.round(modalX),
+      Math.round(scoreY),
+      scoreTextContent,
       {
         fontSize: `${Math.round(scoreFontSize)}px`,
-        fontFamily: 'monospace', // ✅ Моноширинный шрифт для четкости
+        fontFamily: DEFAULT_FONT_FAMILY,
         fontStyle: GAMEOVER_SCORE_FONT_STYLE,
         color: GAMEOVER_SCORE_COLOR,
-        wordWrap: { width: contentAreaWidth },
+        wordWrap: { width: nativeAvailableWidth },
         align: 'center'
       }
     ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
+    this.scoreText.setResolution(textResolution).setScale(invZoom);
 
-    // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
-    this.scoreText.setResolution(textResolution);
+    // 4. Character (Block 2) - Centered
+    this.createPlayerAnimation(modalX, charY);
 
-    // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
-    this.scoreText.setScale(invZoom);
-
-    // ✅ Логирование размера шрифта счетчика
-    logger.log('MODAL_SIZE', `GameOverModal: Score text: fontSize=${scoreFontSize.toFixed(2)}px, text="${scoreTextToDisplay}"`);
-
-    // ✅ Персонаж с анимацией - используем рассчитанную позицию
-    this.createPlayerAnimation(modalX, spriteY);
-
-    // ✅ Кнопка Рестарт
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
-    const restartButtonX = Math.round(modalX);
-    const roundedRestartButtonY = Math.round(restartButtonY);
+    // 4. Buttons
+    // Restart (Block 0)
+    const buttonWidth = contentAreaWidth;
 
     this.restartButton = new Button(this.scene, {
-      x: restartButtonX, // ✅ Округлено до целого пикселя
-      y: roundedRestartButtonY, // ✅ Округлено до целого пикселя
+      x: Math.round(modalX),
+      y: Math.round(restartButtonY),
       width: buttonWidth,
-      height: buttonHeight,
-      text: 'ИГРАТЬ ЗАНОВО',
-      fontSize: buttonFontSize, // ✅ В 1.5 раза больше общего размера
-      wordWrap: { width: buttonWidth }, // ✅ Максимальная ширина для переноса
+      height: blockHeight, // Full block height
+      text: restartBtnText,
+      fontSize: buttonFontSize,
+      wordWrap: { width: nativeAvailableWidth },
       onClick: () => {
-        logger.log('BUTTON_EVENTS', 'GameOverModal: Restart button clicked');
         this.config.onRestart();
         this.destroy();
       }
     });
     this.restartButton.setDepth(DEPTHS.SCREEN.MODAL_BUTTON);
 
-    // ✅ Логирование размера шрифта кнопки Рестарт
-    logger.log('MODAL_SIZE', `GameOverModal: Restart button: fontSize=${buttonFontSize.toFixed(2)}px`);
-
-    // ✅ Кнопка "Следующий уровень" (только для WIN_LEVEL)
+    // Next Level (Block 1) - Only if WIN_LEVEL
     if (this.config.type === GameOverType.WIN_LEVEL && this.config.onNextLevel) {
-      // ✅ Округляем координаты до целых пикселей для предотвращения размытия
-      const nextLevelButtonX = Math.round(modalX);
-      const roundedNextLevelButtonY = Math.round(nextLevelButtonY);
-
       this.nextLevelButton = new Button(this.scene, {
-        x: nextLevelButtonX, // ✅ Округлено до целого пикселя
-        y: roundedNextLevelButtonY, // ✅ Округлено до целого пикселя
+        x: Math.round(modalX),
+        y: Math.round(nextLevelButtonY),
         width: buttonWidth,
-        height: buttonHeight,
-        text: 'СЛЕДУЮЩИЙ УРОВЕНЬ',
-        fontSize: buttonFontSize, // ✅ В 1.5 раза больше общего размера
-        wordWrap: { width: buttonWidth }, // ✅ Максимальная ширина для переноса
+        height: blockHeight,
+        text: nextLevelBtnText,
+        fontSize: buttonFontSize,
+        wordWrap: { width: nativeAvailableWidth },
         onClick: () => {
-          logger.log('BUTTON_EVENTS', 'GameOverModal: Next level button clicked');
-          if (this.config.onNextLevel) {
-            this.config.onNextLevel();
-          }
+          if (this.config.onNextLevel) this.config.onNextLevel();
           this.destroy();
         }
       });
       this.nextLevelButton.setDepth(DEPTHS.SCREEN.MODAL_BUTTON);
+    }
 
-      // ✅ Логирование размера шрифта кнопки "Следующий уровень"
-      logger.log('MODAL_SIZE', `GameOverModal: Next level button: fontSize=${buttonFontSize.toFixed(2)}px`);
+    // ═══════════════════════════════════════════════════════
+    // ✅ DEBUG GRAPHICS
+    // ═══════════════════════════════════════════════════════
+    if (DEBUG_MODAL_BOUNDS) {
+      const graphics = this.scene.add.graphics();
+      graphics.setDepth(3000).setScrollFactor(0);
+
+      // Block bounds
+      const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0x00ffff, 0xff00ff];
+      blockPositions.forEach((y, idx) => {
+        graphics.lineStyle(2, colors[idx % colors.length], 0.8);
+        graphics.strokeRect(modalX - contentAreaWidth / 2, y - blockHeight / 2, contentAreaWidth, blockHeight);
+
+        // Block Label
+        const label = this.scene.add.text(
+          modalX - contentAreaWidth / 2 + 5,
+          y - blockHeight / 2 + 5,
+          `Block ${idx}`,
+          { fontSize: '10px', color: '#ffffff' }
+        ).setDepth(3001).setScrollFactor(0);
+      });
+
+      // Available Text Area (Blue)
+      graphics.lineStyle(1, 0x0088ff, 1.0);
+      const w = blockAvailableWidth;
+      const h = blockAvailableHeight;
+      blockPositions.forEach(y => {
+        graphics.strokeRect(modalX - w / 2, y - h / 2, w, h);
+      });
     }
   }
 
@@ -431,7 +426,7 @@ export class GameOverModal {
     }
   }
 
-  private createPlayerAnimation(modalX: number, spriteY: number): void {
+  private createPlayerAnimation(x: number, y: number): void {
     // ✅ Для проигрыша используем статическую текстуру Character.GameOver_16x16.png
     if (this.config.type === GameOverType.LOSE) {
       const gameOverKey = 'character_gameover';
@@ -442,15 +437,16 @@ export class GameOverModal {
         return;
       }
 
-      // Создаем статическое изображение (не спрайт с анимацией)
+      // Создаем статическое изображение
       this.playerSprite = this.scene.add.image(
-        modalX,
-        spriteY, // ✅ Используем рассчитанную позицию
+        x,
+        y,
         gameOverKey
       ).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
 
-      // ✅ Масштабируем персонажа используя константу из системы масштабирования
+      // ✅ Масштабируем персонажа используя стандартный игровой масштаб (User Request)
       this.playerSprite.setScale(BASE_SCALE * ACTOR_SIZES.PLAYER);
+
     } else {
       // ✅ Для выигрыша используем анимацию из Character.Win_64x16.png
       const spriteKey = 'character_win';
@@ -463,51 +459,42 @@ export class GameOverModal {
 
       // Создаем спрайт
       const sprite = this.scene.add.sprite(
-        modalX,
-        spriteY, // ✅ Используем рассчитанную позицию
+        x,
+        y,
         spriteKey
       ).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
 
       // Сохраняем спрайт в поле класса
       this.playerSprite = sprite;
 
-      // ✅ Используем анимацию из конфигурации (уже создана через AnimationManager)
+      // ✅ Используем анимацию из конфигурации
       const animKey = 'boy_jump_win';
 
-      // Проверяем, что анимация существует (она должна быть создана в MainScene через SPRITESHEET_CONFIGS)
       if (!this.scene.anims.exists(animKey)) {
-        logger.warn('MODAL_UI', `GameOverModal: Animation "${animKey}" not found. It should be created via SPRITESHEET_CONFIGS.`);
+        logger.warn('MODAL_UI', `GameOverModal: Animation "${animKey}" not found.`);
         return;
       }
 
-      // Запускаем анимацию нативно (на всякий случай)
+      // Запускаем анимацию нативно
       sprite.play(animKey, true);
 
       // ✅ ВНЕДРЯЕМ РУЧНУЮ СИНХРОНИЗАЦИЮ КАДРОВ
-      // Это нужно, так как в проекте для physics спрайтов нативная анимация может не работать при паузе
       const anim = this.scene.anims.get(animKey);
       if (anim && anim.frames && anim.frames.length > 0) {
         let currentFrameIdx = 0;
         const frameRate = anim.frameRate || 8;
         const interval = 1000 / frameRate;
 
-        logger.log('MODAL_UI', `GameOverModal: Initializing manual animation sync for "${animKey}": frameRate=${frameRate}, interval=${interval}, totalFrames=${anim.frames.length}`);
-
-        // Создаем таймер для переключения кадров
         this.animationTimer = this.scene.time.addEvent({
           delay: interval,
           callback: () => {
             if (!sprite || !sprite.active) return;
-
-            // Переходим к следующему кадру
             currentFrameIdx = (currentFrameIdx + 1) % anim.frames.length;
             const animFrame = anim.frames[currentFrameIdx];
-
             if (animFrame && animFrame.frame) {
               const animFrameObj = animFrame.frame;
               let frameIndex: number | undefined;
 
-              // Определяем индекс кадра (совместимо с разными форматами кадров Phaser)
               if (typeof (animFrameObj as any).index === 'number') {
                 frameIndex = (animFrameObj as any).index;
               } else if (typeof animFrameObj.name === 'string') {
@@ -516,11 +503,6 @@ export class GameOverModal {
 
               if (frameIndex !== undefined) {
                 sprite.setFrame(frameIndex);
-
-                // Логируем изредка для проверки
-                if (Math.random() < 0.05) {
-                  logger.log('MODAL_UI', `GameOverModal: Manual frame sync: ${currentFrameIdx} -> frameIndex ${frameIndex}`);
-                }
               }
             }
           },
@@ -528,10 +510,8 @@ export class GameOverModal {
         });
       }
 
-      logger.log('MODAL_UI', `GameOverModal: Playing win animation "${animKey}" on sprite: isPlaying=${sprite.anims.isPlaying}, currentAnim=${sprite.anims.currentAnim?.key}, frame=${sprite.frame.name}`);
-
-      // ✅ Масштабируем персонажа используя константу из системы масштабирования
-      sprite.setScale(BASE_SCALE * ACTOR_SIZES.PLAYER); // Используем константу масштабирования игрока
+      // ✅ Масштабируем персонажа используя стандартный игровой масштаб (User Request)
+      sprite.setScale(BASE_SCALE * ACTOR_SIZES.PLAYER);
     }
   }
 

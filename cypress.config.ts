@@ -10,8 +10,8 @@ export default defineConfig({
     supportFile: 'src/tests/e2e/cypress/support/e2e.ts',
     videosFolder: 'src/tests/e2e/cypress/videos',
     screenshotsFolder: 'src/tests/e2e/cypress/screenshots',
-    viewportWidth: 1280,
-    viewportHeight: 720,
+    viewportWidth: 800,    // ✅ Small Monitor (800×600)
+    viewportHeight: 600,
     defaultCommandTimeout: 10000,
     requestTimeout: 10000,
     responseTimeout: 10000,

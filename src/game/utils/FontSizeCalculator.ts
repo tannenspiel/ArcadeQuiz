@@ -11,7 +11,12 @@ import {
   MAX_FONT_SIZE,
   BUTTON_PADDING_BASE_X,
   BUTTON_PADDING_BASE_Y,
-  FONT_SIZE_MULTIPLIERS
+  FONT_SIZE_MULTIPLIERS,
+  COIN_BUBBLE_FONT_MULTIPLIERS,
+  MODAL_FONT_MULTIPLIERS,
+  KEY_QUESTION_MODAL_MAX_FONT_SIZE,
+  PORTAL_MODAL_MAX_FONT_SIZE,
+  GAMEOVER_MODAL_MAX_FONT_SIZE
 } from '../../constants/textStyles';
 import { calculateModalSize } from '../ui/ModalSizeCalculator';
 import { QuizManager } from '../systems/QuizManager';
@@ -20,7 +25,7 @@ import { logger } from '../../utils/Logger';
 import { BASE_SCALE } from '../../constants/gameConstants';
 import { ASPECT_RATIO_RANGES } from '../ui/ModalSizeCalculator';
 
-export const MAX_OPTIMAL_FONT_SIZE = 48; // Максимальный оптимальный размер (48px × 0.625 = 30px визуально)
+export const MAX_OPTIMAL_FONT_SIZE = 48; // ✅ Максимальный оптимальный размер (был 125, возвращено к 48)
 
 /**
 * Рассчитывает оптимальный базовый размер шрифта на основе доступной высоты и текста
@@ -186,65 +191,501 @@ export function calculateButtonFontSize(
   availableHeight: number,
   longestAnswer: string,
   defaultFontSize: number,
-  minFontSize?: number
+  minFontSize?: number,
+  fontFamily?: string,
+  fontStyle?: string
 ): number {
   // ✅ ВАЖНО: wordWrap.width должен быть доступной шириной для текста (с учётом отступов)
   const wordWrapWidth = availableWidth; // Доступная ширина для текста
+  const maxHeight = availableHeight;
 
-  const tempText = scene.add.text(0, 0, longestAnswer, {
-    fontSize: `${defaultFontSize}px`,
-    fontFamily: DEFAULT_FONT_FAMILY,
-    wordWrap: { width: wordWrapWidth },
-    align: 'center'
-  });
+  // ✅ КРИТИЧЕСКОЕ: Вычисляем invZoom для применения setScale к временному тексту
+  const invZoom = 1 / scene.cameras.main.zoom;
+
+  // ✅ Используем переданные fontFamily/fontStyle или значения по умолчанию
+  const useFontFamily = fontFamily || DEFAULT_FONT_FAMILY;
+  const useFontStyle = fontStyle || '';
 
   // ✅ Если используем кастомный пиксельный шрифт, используем специальный калькулятор
   if (DEFAULT_FONT_FAMILY === 'PixeloidSans') {
-    tempText.destroy();
     return calculatePixelButtonFontSize(scene, availableWidth, availableHeight, longestAnswer);
   }
 
-  // ✅ УПРОЩЕННАЯ ЛОГИКА: Проверяем, влезает ли текст в кнопку БЕЗ применения setScale
-  // Button.ts применяет setScale(invZoom) для ЧЕТКОСТИ, но это визуальный эффект.
-  // Проверяем исходную высоту текста с wordWrap (может быть несколько строк)
-  const textHeight = tempText.height;
-  const maxHeight = availableHeight;
+  // ✅ Ограничение: максимум 3 строки текста в блоке
+  const MAX_LINES = 3;
 
-  tempText.destroy();
+  // ✅ КРИТИЧЕСКОЕ: wordWrap.width работает в нативных координатах текста (до scale)
+  // Чтобы displayWidth совпадал с availableWidth: nativeWidth = availableWidth / invZoom
+  // Идентично тому, как KeyQuestionModal создаёт реальный текст: blockAvailableWidth / invZoom
+  const nativeWrapWidth = wordWrapWidth / invZoom;
 
-  // ✅ Если текст влезает в кнопку по высоте - используем MAX_OPTIMAL_FONT_SIZE (40px)
-  // Это даёт максимальный размер шрифта для кнопок
-  if (textHeight <= maxHeight) {
-    logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: text fits (${textHeight.toFixed(1)} <= ${maxHeight.toFixed(1)}), using MAX_OPTIMAL_FONT_SIZE: ${MAX_OPTIMAL_FONT_SIZE}px`);
+  // ✅ Конфигурация шрифта для temp-текстов (идентична реальному тексту)
+  const textConfig = {
+    fontFamily: useFontFamily,
+    fontStyle: useFontStyle,
+    wordWrap: { width: nativeWrapWidth },
+    align: 'center' as const,
+    lineSpacing: 0
+  };
+
+  // ✅ Проверяем с MAX_OPTIMAL_FONT_SIZE (48px) — быстрая проверка
+  const tempTextMax = scene.add.text(0, 0, longestAnswer, {
+    ...textConfig,
+    fontSize: `${MAX_OPTIMAL_FONT_SIZE}px`,
+  });
+
+  tempTextMax.setScale(invZoom);
+  const maxTextHeight = tempTextMax.displayHeight;
+  const maxTextLines = tempTextMax.getWrappedText().length;
+  tempTextMax.destroy();
+
+  // ✅ Если влезает с MAX_OPTIMAL_FONT_SIZE И не больше MAX_LINES строк
+  if (maxTextHeight <= maxHeight && maxTextLines <= MAX_LINES) {
+    logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: text fits with MAX (h=${maxTextHeight.toFixed(1)}≤${maxHeight.toFixed(1)}, lines=${maxTextLines}≤${MAX_LINES}), using ${MAX_OPTIMAL_FONT_SIZE}px [font: ${useFontFamily} ${useFontStyle}]`);
     return MAX_OPTIMAL_FONT_SIZE;
   }
 
-  // ✅ Если не влезает - уменьшаем пропорционально
-  const scaleFactor = maxHeight / textHeight;
-  const finalFontSize = defaultFontSize * scaleFactor;
-  logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: text doesn't fit (${textHeight.toFixed(1)} > ${maxHeight.toFixed(1)}), scaleFactor: ${scaleFactor.toFixed(3)}, adjusted: ${finalFontSize.toFixed(2)}`);
-
-  // Ограничения: минимум minFontSize (или MIN_FONT_SIZE_BUTTON по умолчанию), максимум MAX_OPTIMAL_FONT_SIZE
+  // ✅ Бинарный поиск максимального размера с ограничением по высоте И числу строк
   const minSize = minFontSize !== undefined ? minFontSize : MIN_FONT_SIZE_BUTTON;
-  const clampedSize = Math.max(minSize, Math.min(MAX_OPTIMAL_FONT_SIZE, finalFontSize));
-  if (clampedSize !== finalFontSize) {
-    logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: clamped from ${finalFontSize.toFixed(2)} to ${clampedSize.toFixed(2)}`);
+  let low = minSize;
+  let high = MAX_OPTIMAL_FONT_SIZE;
+  let optimalSize = low;
+  const tolerance = 0.5;
+
+  // 🔍 ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+  logger.log('MODAL_SIZE', `📏 calculateButtonFontSize DEBUG:`);
+  logger.log('MODAL_SIZE', `  Text: "${longestAnswer.substring(0, 30)}${longestAnswer.length > 30 ? '...' : ''}" (${longestAnswer.length} chars)`);
+  logger.log('MODAL_SIZE', `  Params: wrapWidth=${wordWrapWidth.toFixed(1)}px, nativeWrap=${nativeWrapWidth.toFixed(1)}px, maxH=${maxHeight.toFixed(1)}px, invZoom=${invZoom.toFixed(3)}, maxLines=${MAX_LINES}, font="${useFontFamily} ${useFontStyle}"`);
+
+  while (high - low > tolerance) {
+    const testSize = (low + high) / 2;
+
+    const tempText = scene.add.text(0, 0, longestAnswer, {
+      ...textConfig,
+      fontSize: `${testSize}px`,
+    });
+
+    tempText.setScale(invZoom);
+    const testHeight = tempText.displayHeight;
+    const testLines = tempText.getWrappedText().length;
+    tempText.destroy();
+
+    if (testHeight <= maxHeight && testLines <= MAX_LINES) {
+      // Текст влезает и не больше MAX_LINES строк — пробуем больший размер
+      optimalSize = testSize;
+      low = testSize;
+    } else {
+      // Текст не влезает или слишком много строк — уменьшаем
+      high = testSize;
+    }
+  }
+
+  // Ограничения: минимум minSize, максимум MAX_OPTIMAL_FONT_SIZE
+  const clampedSize = Math.max(minSize, Math.min(MAX_OPTIMAL_FONT_SIZE, optimalSize));
+  logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: binary search result: ${clampedSize.toFixed(2)}px (range: ${minSize}-${MAX_OPTIMAL_FONT_SIZE})`);
+  if (clampedSize !== optimalSize) {
+    logger.log('MODAL_SIZE', `📏 calculateButtonFontSize: clamped from ${optimalSize.toFixed(2)} to ${clampedSize.toFixed(2)}`);
   }
   return clampedSize;
 }
 
 /**
+ * Уровневая система размера шрифта (Tiered Font Logic).
+ * 4 уровня: A (1 строка, крупнейший) → B (2 строки) → C (3 строки) → D (4 строки, мелкий).
+ *
+ * Размер A: 20 символов "M" влезают в availableWidth (динамический расчёт).
+ * Размеры B/C/D: ограничены высотой для соответствующего числа строк.
+ * Все размеры динамические — зависят от фактической ширины/высоты поля (7 размеров экрана).
+ *
+ * @param scene - Phaser сцена
+ * @param availableWidth - доступная ширина поля (display-координаты, после padding)
+ * @param availableHeight - доступная высота поля (display-координаты, после padding)
+ * @param longestText - самый длинный текст, который должен влезть
+ * @param fontFamily - семейство шрифта (идентично реальному тексту)
+ * @param fontStyle - стиль шрифта (идентично реальному тексту)
+ * @returns выбранный размер шрифта (в px, нативный — до setScale)
+ */
+export function calculateTieredFontSize(
+  scene: Phaser.Scene,
+  availableWidth: number,
+  availableHeight: number,
+  longestText: string,
+  fontFamily?: string,
+  fontStyle?: string
+): number {
+  const invZoom = 1 / scene.cameras.main.zoom;
+  const nativeWrapWidth = availableWidth / invZoom;
+  const useFontFamily = fontFamily || DEFAULT_FONT_FAMILY;
+  const useFontStyle = fontStyle || '';
+
+  // --- Шаг 1: Измерение метрик шрифта при эталонном размере ---
+  const REF_SIZE = 48;
+  const CHARS_FOR_SIZE_A = 20;
+
+  const refText = scene.add.text(0, 0, 'M'.repeat(CHARS_FOR_SIZE_A), {
+    fontSize: `${REF_SIZE}px`,
+    fontFamily: useFontFamily,
+    fontStyle: useFontStyle,
+  });
+  refText.setScale(invZoom);
+  const refDisplayWidth = refText.displayWidth;
+  const refDisplayHeight = refText.displayHeight;
+  refText.destroy();
+
+  // Пропорция: displayHeight на 1px fontSize
+  const heightPerFontPx = refDisplayHeight / REF_SIZE;
+
+  // --- Шаг 2: Вычисление размеров A, B, C, D ---
+  // Size A: 20 "M" = availableWidth (ограничение по ширине + 1 строка высоты + MAX)
+  // ✅ FIX: Для очень коротких текстов (менее 20 символов) позволяем шрифту быть больше
+  // Если текст короткий (например, 10 символов), используем фактическую длину для расчета
+  const effectiveChars = Math.max(longestText.length, 10); // Минимум 10 символов для расчета ширины
+  const widthRatio = availableWidth / (effectiveChars * (refDisplayWidth / CHARS_FOR_SIZE_A));
+
+  const sizeA_byWidth = REF_SIZE * widthRatio;
+  const sizeA_byHeight = availableHeight / (1 * heightPerFontPx);
+
+  // ✅ Allow slightly larger font than MAX_OPTIMAL_FONT_SIZE if text is very short and fits
+  const sizeA = Math.min(sizeA_byWidth, sizeA_byHeight, MAX_OPTIMAL_FONT_SIZE);
+
+  // Size B/C/D/E/F: ограничены высотой для N строк, гарантированно ≤ A
+  const sizeB = Math.min(availableHeight / (2 * heightPerFontPx), sizeA);
+  const sizeC = Math.min(availableHeight / (3 * heightPerFontPx), sizeA);
+  const sizeD = Math.min(availableHeight / (4 * heightPerFontPx), sizeA);
+  const sizeE = Math.min(availableHeight / (5 * heightPerFontPx), sizeA);
+  const sizeF = Math.min(availableHeight / (6 * heightPerFontPx), sizeA);
+
+  const tiers = [
+    { name: 'A', fontSize: sizeA, maxLines: 1 },
+    { name: 'B', fontSize: sizeB, maxLines: 2 },
+    { name: 'C', fontSize: sizeC, maxLines: 3 },
+    { name: 'D', fontSize: sizeD, maxLines: 4 },
+    { name: 'E', fontSize: sizeE, maxLines: 5 },
+    { name: 'F', fontSize: sizeF, maxLines: 6 },
+  ];
+
+  logger.log('MODAL_SIZE', `📏 TieredFont: A=${sizeA.toFixed(1)} B=${sizeB.toFixed(1)} C=${sizeC.toFixed(1)} D=${sizeD.toFixed(1)} E=${sizeE.toFixed(1)} F=${sizeF.toFixed(1)} | w=${availableWidth.toFixed(0)} h=${availableHeight.toFixed(0)} | "${longestText.substring(0, 25)}..." (${longestText.length}ch) [${useFontFamily} ${useFontStyle}]`);
+
+  // --- Шаг 3: Проверяем каждый уровень с реальным текстом ---
+  for (const tier of tiers) {
+    if (tier.fontSize < MIN_FONT_SIZE_BUTTON) continue;
+
+    const tempText = scene.add.text(0, 0, longestText, {
+      fontSize: `${tier.fontSize}px`,
+      fontFamily: useFontFamily,
+      fontStyle: useFontStyle,
+      wordWrap: { width: nativeWrapWidth },
+      align: 'center',
+      lineSpacing: 0,
+    });
+    tempText.setScale(invZoom);
+    const lines = tempText.getWrappedText().length;
+    const height = tempText.displayHeight;
+    tempText.destroy();
+
+    if (lines <= tier.maxLines && height <= availableHeight) {
+      logger.log('MODAL_SIZE', `📏 TieredFont → ${tier.name}: ${tier.fontSize.toFixed(1)}px (lines=${lines}/${tier.maxLines}, h=${height.toFixed(1)}/${availableHeight.toFixed(1)})`);
+      return tier.fontSize;
+    }
+  }
+
+  // Fallback: F (с клампом до минимума)
+  const fallback = Math.max(sizeF, MIN_FONT_SIZE_BUTTON);
+  logger.warn('MODAL_SIZE', `📏 TieredFont → FALLBACK: ${fallback.toFixed(1)}px (текст не влезает ни в один уровень)`);
+  return fallback;
+}
+
+/** Средняя ширина символа относительно fontSize для sans-serif (кириллица) */
+export const CHAR_WIDTH_RATIO_SANS = 0.45;
+/** Средняя ширина символа относительно fontSize для monospace */
+export const CHAR_WIDTH_RATIO_MONO = 0.50;
+/** Коэффициент межстрочного интервала (используется для оценки высоты строки) */
+const LINE_HEIGHT_RATIO = 1.55;
+
+/**
+ * Симуляция пословного переноса строк (как делает Phaser wordWrap).
+ *
+ * Phaser переносит по словам, а не по символам. Если слово не помещается
+ * в оставшееся место строки, оно целиком переносится на следующую.
+ * Простая формула ceil(textLen / charsPerLine) даёт заниженный результат
+ * при наличии длинных слов.
+ *
+ * @param text — текст для симуляции
+ * @param charsPerLine — макс. количество символов в строке
+ * @returns количество строк
+ */
+function simulateWordWrapLines(text: string, charsPerLine: number): number {
+  if (charsPerLine <= 0) return 999;
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return 1;
+
+  let lines = 1;
+  let currentLineChars = 0;
+
+  for (const word of words) {
+    const wordLen = word.length;
+
+    if (currentLineChars === 0) {
+      // Начало строки — слово всегда ставится (даже если длиннее charsPerLine)
+      currentLineChars = wordLen;
+    } else {
+      // +1 за пробел между словами
+      const neededWithSpace = currentLineChars + 1 + wordLen;
+      if (neededWithSpace <= charsPerLine) {
+        // Помещается в текущую строку
+        currentLineChars = neededWithSpace;
+      } else {
+        // Не помещается — перенос на новую строку
+        lines++;
+        currentLineChars = wordLen;
+      }
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Находит МАКСИМАЛЬНЫЙ fontSize, при котором текст (с пословным wordWrap)
+ * полностью помещается в блок заданных размеров.
+ *
+ * Без ограничения по количеству строк — шрифт автоматически адаптируется:
+ * - На широком экране: мало строк → крупный шрифт
+ * - На узком экране: больше строк → шрифт чуть меньше, но максимально возможный
+ *
+ * Использует бинарный поиск для эффективности.
+ *
+ * @param fieldWidth  — ширина текстового поля (нативные px)
+ * @param fieldHeight — высота текстового поля (нативные px)
+ * @param longestText — самый длинный текст (строка, для wordWrap-симуляции)
+ * @param charWidthRatio — средняя ширина символа / fontSize
+ * @param maxSize — опциональный максимальный размер шрифта (по умолчанию MAX_OPTIMAL_FONT_SIZE)
+ * @returns fontSize (px)
+ */
+export function calculateTieredFontSizeSimple(
+  fieldWidth: number,
+  fieldHeight: number,
+  longestText: string,
+  charWidthRatio: number = CHAR_WIDTH_RATIO_SANS,
+  maxSize?: number
+): number {
+  // Бинарный поиск: максимальный fontSize, при котором текст влезает
+  const effectiveMaxSize = maxSize ?? MAX_OPTIMAL_FONT_SIZE;
+  let lo = MIN_FONT_SIZE_BUTTON;
+  let hi = Math.min(fieldHeight, effectiveMaxSize);
+  let bestSize = lo;
+
+  while (hi - lo > 0.5) {
+    const mid = (lo + hi) / 2;
+    const charsPerLine = Math.floor(fieldWidth / (mid * charWidthRatio));
+
+    if (charsPerLine <= 0) {
+      hi = mid;
+      continue;
+    }
+
+    const lines = simulateWordWrapLines(longestText, charsPerLine);
+    const totalHeight = lines * mid * LINE_HEIGHT_RATIO;
+
+    if (totalHeight <= fieldHeight) {
+      bestSize = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  bestSize = Math.min(bestSize, effectiveMaxSize);
+
+  const charsPerLine = Math.floor(fieldWidth / (bestSize * charWidthRatio));
+  const lines = charsPerLine > 0 ? simulateWordWrapLines(longestText, charsPerLine) : 1;
+
+  logger.log('MODAL_SIZE', `📏 FontAuto: ${bestSize.toFixed(1)}px, ${lines} строк (charsPerLine=${charsPerLine}, textLen=${longestText.length}, fieldW=${fieldWidth.toFixed(0)}, fieldH=${fieldHeight.toFixed(0)})`);
+
+  return bestSize;
+}
+
+/**
+ * Находит МАКСИМАЛЬНЫЙ fontSize, при котором текст (с пословным wordWrap)
+ * полностью помещается в блок заданных размеров.
+ *
+ * Специальная версия для PortalModal (копия calculateTieredFontSizeSimple),
+ * чтобы можно было настраивать логику независимо от KeyQuestionModal.
+ *
+ * @param fieldWidth  — ширина текстового поля (нативные px)
+ * @param fieldHeight — высота текстового поля (нативные px)
+ * @param longestText — самый длинный текст (строка, для wordWrap-симуляции)
+ * @param charWidthRatio — средняя ширина символа / fontSize
+ * @returns fontSize (px)
+ */
+export function calculatePortalTieredFontSize(
+  fieldWidth: number,
+  fieldHeight: number,
+  longestText: string,
+  charWidthRatio: number = CHAR_WIDTH_RATIO_SANS
+): number {
+  // Бинарный поиск: максимальный fontSize, при котором текст влезает
+  const effectiveMaxSize = PORTAL_MODAL_MAX_FONT_SIZE;
+  let lo = MIN_FONT_SIZE_BUTTON;
+  let hi = Math.min(fieldHeight, effectiveMaxSize);
+  let bestSize = lo;
+
+  while (hi - lo > 0.5) {
+    const mid = (lo + hi) / 2;
+    const charsPerLine = Math.floor(fieldWidth / (mid * charWidthRatio));
+
+    if (charsPerLine <= 0) {
+      hi = mid;
+      continue;
+    }
+
+    const lines = simulateWordWrapLines(longestText, charsPerLine);
+    const totalHeight = lines * mid * LINE_HEIGHT_RATIO;
+
+    if (totalHeight <= fieldHeight) {
+      bestSize = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  bestSize = Math.min(bestSize, effectiveMaxSize);
+
+  const charsPerLine = Math.floor(fieldWidth / (bestSize * charWidthRatio));
+  const lines = charsPerLine > 0 ? simulateWordWrapLines(longestText, charsPerLine) : 1;
+
+  logger.log('MODAL_SIZE', `📏 PortalFont (Independent): ${bestSize.toFixed(1)}px, ${lines} lines (charsPerLine=${charsPerLine}, textLen=${longestText.length}, fieldW=${fieldWidth.toFixed(0)}, fieldH=${fieldHeight.toFixed(0)})`);
+
+  return bestSize;
+}
+
+/**
+ * Находит МАКСИМАЛЬНЫЙ fontSize для текстовых блоков GameOverModal.
+ *
+ * Специальная версия для GameOverModal (копия calculateTieredFontSizeSimple),
+ * чтобы можно было настраивать логику независимо.
+ *
+ * @param fieldWidth  — ширина текстового поля (нативные px)
+ * @param fieldHeight — высота текстового поля (нативные px)
+ * @param longestText — самый длинный текст (строка, для wordWrap-симуляции)
+ * @param charWidthRatio — средняя ширина символа / fontSize
+ * @returns fontSize (px)
+ */
+export function calculateGameOverTieredFontSize(
+  fieldWidth: number,
+  fieldHeight: number,
+  longestText: string,
+  charWidthRatio: number = CHAR_WIDTH_RATIO_SANS
+): number {
+  // Бинарный поиск: максимальный fontSize, при котором текст влезает
+  const effectiveMaxSize = GAMEOVER_MODAL_MAX_FONT_SIZE;
+  let lo = MIN_FONT_SIZE_BUTTON;
+  let hi = Math.min(fieldHeight, effectiveMaxSize);
+  let bestSize = lo;
+
+  while (hi - lo > 0.5) {
+    const mid = (lo + hi) / 2;
+    const charsPerLine = Math.floor(fieldWidth / (mid * charWidthRatio));
+
+    if (charsPerLine <= 0) {
+      hi = mid;
+      continue;
+    }
+
+    const lines = simulateWordWrapLines(longestText, charsPerLine);
+    const totalHeight = lines * mid * LINE_HEIGHT_RATIO;
+
+    if (totalHeight <= fieldHeight) {
+      bestSize = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  bestSize = Math.min(bestSize, effectiveMaxSize);
+
+  const charsPerLine = Math.floor(fieldWidth / (bestSize * charWidthRatio));
+  const lines = charsPerLine > 0 ? simulateWordWrapLines(longestText, charsPerLine) : 1;
+
+  logger.log('MODAL_SIZE', `📏 GameOverFont (Independent): ${bestSize.toFixed(1)}px, ${lines} lines (charsPerLine=${charsPerLine}, textLen=${longestText.length}, fieldW=${fieldWidth.toFixed(0)}, fieldH=${fieldHeight.toFixed(0)})`);
+
+  return bestSize;
+}
+
+/**
+ * Находит МАКСИМАЛЬНЫЙ fontSize для текстовых блоков PortalModal.
+ *
+ * Идентична calculateTieredFontSizeSimple, но выделена отдельно для
+ * возможной независимой модификации в будущем.
+ *
+ * @param fieldWidth  — ширина текстового поля (нативные px)
+ * @param fieldHeight — высота текстового поля (нативные px)
+ * @param longestText — самый длинный текст (строка, для wordWrap-симуляции)
+ * @param charWidthRatio — средняя ширина символа / fontSize
+ * @returns fontSize (px)
+ */
+export function calculatePortalFontSize(
+  fieldWidth: number,
+  fieldHeight: number,
+  longestText: string,
+  charWidthRatio: number = CHAR_WIDTH_RATIO_SANS
+): number {
+  // Бинарный поиск: максимальный fontSize, при котором текст влезает
+  let lo = MIN_FONT_SIZE_BUTTON;
+  let hi = Math.min(fieldHeight, MAX_OPTIMAL_FONT_SIZE);
+  let bestSize = lo;
+
+  while (hi - lo > 0.5) {
+    const mid = (lo + hi) / 2;
+    const charsPerLine = Math.floor(fieldWidth / (mid * charWidthRatio));
+
+    if (charsPerLine <= 0) {
+      hi = mid;
+      continue;
+    }
+
+    const lines = simulateWordWrapLines(longestText, charsPerLine);
+    const totalHeight = lines * mid * LINE_HEIGHT_RATIO;
+
+    if (totalHeight <= fieldHeight) {
+      bestSize = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  bestSize = Math.min(bestSize, MAX_OPTIMAL_FONT_SIZE);
+
+  const charsPerLine = Math.floor(fieldWidth / (bestSize * charWidthRatio));
+  const lines = charsPerLine > 0 ? simulateWordWrapLines(longestText, charsPerLine) : 1;
+
+  logger.log('MODAL_SIZE', `📏 PortalFont: ${bestSize.toFixed(1)}px, ${lines} строк (charsPerLine=${charsPerLine}, textLen=${longestText.length}, fieldW=${fieldWidth.toFixed(0)}, fieldH=${fieldHeight.toFixed(0)})`);
+
+  return bestSize;
+}
+
+/**
  * Рассчитывает единый базовый размер шрифта для всех модальных окон
  * Использует логику KeyQuestionModal: размеры модального окна вопросов и longestTexts.question
- * Этот размер должен использоваться во всех модальных окнах (KeyQuestionModal, PortalModal, GameOverModal)
- * 
+ *
+ * ⚠️ **ЗАРЕЗЕРВИРОВАНО (v3 Tiered Font System):**
+ * Эта функция НЕ ИСПОЛЬЗУЕТСЯ в текущей системе. Модальные окна теперь используют
+ * `calculateTieredFontSizeSimple` напрямую с бинарным поиском.
+ * Функция оставлена для обратной совместимости и возможного будущего использования.
+ *
  * @param scene - Phaser сцена для создания временных объектов
  * @param currentLevel - текущий уровень (по умолчанию 1)
+ * @param customLongestTexts - (Опционально) Переданные данные о самых длинных текстах (например, из KeyQuestionModal)
  * @returns единый базовый размер шрифта
+ * @deprecated Используйте calculateTieredFontSizeSimple для v3 Tiered Font System
  */
 export function calculateUnifiedBaseFontSize(
   scene: Phaser.Scene,
-  currentLevel: number = 1
+  currentLevel: number = 1,
+  customLongestTexts?: { question: string, answer: string, feedback: string }
 ): number {
   const cam = scene.cameras.main;
 
@@ -315,8 +756,26 @@ export function calculateUnifiedBaseFontSize(
 
   // Получаем самый длинный текст
   let longestTexts;
-  if (quizManager) {
-    longestTexts = quizManager.getLongestTexts(currentLevel);
+
+  if (customLongestTexts) {
+    // ✅ Если переданы кастомные тексты (из KeyQuestionModal) - используем их приоритетно
+    longestTexts = customLongestTexts;
+    logger.log('MODAL_SIZE', '✅ calculateUnifiedBaseFontSize: Using provided customLongestTexts');
+  } else if (quizManager) {
+    // Если есть QuizManager - берем из него (синхронно, если кешировано, или дефолт)
+    // ⚠️ ВАЖНО: getLongestTexts должен быть синхронным или мы должны ждать data loading
+    // Но QuizManager сейчас асинхронный. Поэтому лучше передавать customLongestTexts извне.
+    // Если метод асинхронный, здесь мы не можем его вызвать без await.
+    // Поэтому fallback на константы, если customLongestTexts не переданы.
+    logger.warn('MODAL_SIZE', '⚠️ calculateUnifiedBaseFontSize: customLongestTexts not provided, quizManager is async. Falling back to default constants or cached values if available.');
+
+    // Попытка получить из кеша, если реализуем синхронный геттер. Пока fallback.
+    longestTexts = {
+      question: 'Какая планета известна как \'Красная планета\'?',
+      answer: 'Кошка говорит мяу! Она маукает, мяунькает! Намяукивает!',
+      feedback: 'Правильно! Кошка говорит \'Мяу\'! Ты прям ваще красава! Угадал про кошку!',
+      maxLength: 76
+    };
   } else {
     // Fallback: используем дефолтные значения (как в KeyQuestionModal)
     logger.warn('MODAL_SIZE', '⚠️ calculateUnifiedBaseFontSize: QuizManager not found, using default longest texts');
@@ -329,11 +788,13 @@ export function calculateUnifiedBaseFontSize(
   }
 
   // ✅ ОПТИМИЗИРОВАННЫЙ РАСЧЕТ БАЗОВОГО РАЗМЕРА (как в KeyQuestionModal)
-  // ✅ ИСПРАВЛЕНИЕ: Используем САМЫЙ ДЛИННЫЙ текст среди всех типов (question, answer, feedback)
+  // ✅ ИСПРАВЛЕНИЕ: Используем САМЫЙ ДЛИННЫЙ текст СРЕДИ ВСЕХ ТИПОВ (question, answer, feedback)
   // Это гарантирует, что даже самый длинный текст любого типа влезет в блоки
-  const longestText = longestTexts.question.length >= longestTexts.answer.length
-    ? (longestTexts.question.length >= longestTexts.feedback.length ? longestTexts.question : longestTexts.feedback)
-    : (longestTexts.answer.length >= longestTexts.feedback.length ? longestTexts.answer : longestTexts.feedback);
+  const longestText = longestTexts.question.length >= longestTexts.answer.length && longestTexts.question.length >= longestTexts.feedback.length
+    ? longestTexts.question
+    : longestTexts.answer.length >= longestTexts.feedback.length
+      ? longestTexts.answer
+      : longestTexts.feedback;
 
   // Сначала рассчитываем начальный размер на основе высоты блока
   const initialBaseSize = blockHeight * 0.65; // 65% от высоты блока (верхняя граница для поиска)
@@ -409,6 +870,70 @@ export function getFontSizeMultiplier(screenAR: number): number {
 
   // Fallback: используем стандартный множитель
   logger.log('MODAL_SIZE', `🎯 FontSize: ❌ Fallback | screenAR=${screenAR.toFixed(2)} | multiplier=1.3`);
+  return 1.3;
+}
+
+/**
+ * ✅ Получает множитель для модальных окон (KeyQuestionModal, PortalModal, GameOverModal)
+ * Для больших экранов использует уменьшенные множители из MODAL_FONT_MULTIPLIERS
+ *
+ * @param screenAR - aspect ratio экрана (canvasWidth / canvasHeight)
+ * @returns множитель для модальных окон
+ */
+export function getModalFontMultiplier(screenAR: number): number {
+  // Находим соответствующий диапазон aspect ratio
+  const range = ASPECT_RATIO_RANGES.find(r =>
+    screenAR >= r.minAR && screenAR < r.maxAR
+  );
+
+  // Сначала проверяем модальные множители
+  if (range && range.name in MODAL_FONT_MULTIPLIERS) {
+    const multiplier = MODAL_FONT_MULTIPLIERS[range.name as keyof typeof MODAL_FONT_MULTIPLIERS];
+    logger.log('MODAL_SIZE', `🎯 Modal: ${range.displayName} | screenAR=${screenAR.toFixed(2)} | multiplier=${multiplier.toFixed(2)} (${range.name})`);
+    return multiplier;
+  }
+
+  // Fallback на базовые множители
+  if (range && range.name in FONT_SIZE_MULTIPLIERS) {
+    const multiplier = FONT_SIZE_MULTIPLIERS[range.name as keyof typeof FONT_SIZE_MULTIPLIERS];
+    logger.log('MODAL_SIZE', `🎯 Modal (fallback): ${range.displayName} | screenAR=${screenAR.toFixed(2)} | multiplier=${multiplier.toFixed(2)} (${range.name})`);
+    return multiplier;
+  }
+
+  // Fallback на случай, если диапазон не найден
+  logger.log('MODAL_SIZE', `🎯 Modal: ❌ Fallback | screenAR=${screenAR.toFixed(2)} | multiplier=1.0`);
+  return 1.0;
+}
+
+/**
+ * ✅ Получает множитель для бабблов монеток (CoinBubbleQuiz)
+ * Сначала проверяет COIN_BUBBLE_FONT_MULTIPLIERS, затем fallback на FONT_SIZE_MULTIPLIERS
+ *
+ * @param screenAR - aspect ratio экрана (canvasWidth / canvasHeight)
+ * @returns множитель для бабблов
+ */
+export function getCoinBubbleFontMultiplier(screenAR: number): number {
+  // Находим соответствующий диапазон aspect ratio
+  const range = ASPECT_RATIO_RANGES.find(r =>
+    screenAR >= r.minAR && screenAR < r.maxAR
+  );
+
+  // Используем множители для бабблов
+  if (range && range.name in COIN_BUBBLE_FONT_MULTIPLIERS) {
+    const multiplier = COIN_BUBBLE_FONT_MULTIPLIERS[range.name as keyof typeof COIN_BUBBLE_FONT_MULTIPLIERS];
+    logger.log('MODAL_SIZE', `🎯 CoinBubble: ${range.displayName} | screenAR=${screenAR.toFixed(2)} | multiplier=${multiplier.toFixed(2)} (${range.name})`);
+    return multiplier;
+  }
+
+  // Fallback для бабблов — используем общие множители (теперь они правильные из бэкапа)
+  if (range && range.name in FONT_SIZE_MULTIPLIERS) {
+    const multiplier = FONT_SIZE_MULTIPLIERS[range.name as keyof typeof FONT_SIZE_MULTIPLIERS];
+    logger.log('MODAL_SIZE', `🎯 CoinBubble (fallback): ${range.displayName} | screenAR=${screenAR.toFixed(2)} | multiplier=${multiplier.toFixed(2)} (${range.name})`);
+    return multiplier;
+  }
+
+  // Fallback на случай, если диапазон не найден
+  logger.log('MODAL_SIZE', `🎯 CoinBubble: ❌ Fallback | screenAR=${screenAR.toFixed(2)} | multiplier=1.3`);
   return 1.3;
 }
 

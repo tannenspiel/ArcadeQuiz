@@ -135,7 +135,8 @@ class Logger {
   private logs: string[] = [];
   private maxLogs: number = 10000; // Максимальное количество логов в памяти
   // ✅ PROD: В продакшене отключаем сохранение логов в память во избежание утечек
-  private logToFile: boolean = import.meta.env.DEV;
+  // ✅ TEST: Используем безопасную проверку через глобальный объект
+  private logToFile: boolean = (globalThis as any).import?.meta?.env?.DEV ?? false;
   private logToConsole: boolean = true;
 
   /**

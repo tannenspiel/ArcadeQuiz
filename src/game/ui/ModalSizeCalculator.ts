@@ -87,8 +87,8 @@ const MOBILE_STANDARD: AspectRatioRange = {
 const TABLET_SQUARE: AspectRatioRange = {
   name: 'TABLET_SQUARE',
   displayName: '📱 Tablet/Square',
-  minAR: 0.75,
-  maxAR: 1.0,
+  minAR: 1.0,   // ✅ FIX: Было 0.75, создавало дублирование с MOBILE_STANDARD
+  maxAR: 1.3,   // ✅ FIX: Было 1.0, создавало дыру 1.0-1.3
   aspectRatio: 0.85
 };
 

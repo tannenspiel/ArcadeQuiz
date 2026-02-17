@@ -22,21 +22,24 @@ import {
   KEY_BUTTON_FONT_SIZE_MULTIPLIER,
   MIN_FONT_SIZE_TEXT,
   MAX_FONT_SIZE,
-  GLOBAL_QUESTION_BACKGROUND_COLOR
+  GLOBAL_QUESTION_BACKGROUND_COLOR,
+  PORTAL_TITLE_FONT_MULTIPLIER,
+  PORTAL_QUESTION_FONT_MULTIPLIER,
+  PORTAL_ANSWER_FONT_MULTIPLIER,
+  PORTAL_BUTTON_FONT_MULTIPLIER
 } from '../../constants/textStyles';
 import { DEPTHS } from '../../constants/gameConstants';
 import { PortalConfig } from '../../types/portalTypes';
 import { ParsedQuestion } from '../../types/questionTypes';
 import { calculateModalSize } from './ModalSizeCalculator';
-import { calculateBaseFontSize, calculateButtonFontSize, calculateUnifiedBaseFontSize } from '../utils/FontSizeCalculator';
+import { calculateBaseFontSize, calculateButtonFontSize, calculateUnifiedBaseFontSize, calculatePortalFontSize, getButtonPadding, calculateTieredFontSizeSimple, calculatePortalTieredFontSize } from '../utils/FontSizeCalculator';
 import { QuizManager } from '../systems/QuizManager';
 import { AssetLoader } from '../core/AssetLoader';
 import { AB_TESTING } from '../../config/gameConfig';
 import { NineSliceBackground } from './NineSliceBackground';
 import { logger } from '../../utils/Logger';
-import { DEBUG_QUIZ_PORTAL } from '../../config/debugConfig';
+import { DEBUG_QUIZ_PORTAL, DEBUG_MODAL_BOUNDS } from '../../config/debugConfig';
 import { BASE_SCALE } from '../../constants/gameConstants';
-import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
 
 export interface PortalModalConfig {
   portalConfig: PortalConfig;
@@ -58,6 +61,9 @@ export class PortalModal {
   private questionImage?: Phaser.GameObjects.Image; // ✅ Изображение глобального вопроса
   private enterButton!: Button; // Инициализируется в createUI()
   private cancelButton!: Button; // Инициализируется в createUI()
+
+  // ✅ ДЕБАГ: Ссылка на debugGraphics для уничтожения
+  private debugGraphics?: Phaser.GameObjects.Graphics;
 
   // ✅ Защита от случайных нажатий
   private buttonsEnabled: boolean = false; // ✅ Кнопки активны только после задержки
@@ -110,7 +116,8 @@ export class PortalModal {
     if (typeof window !== 'undefined') {
       this.orientationHandler = () => {
         logger.log('MODAL_UI', 'PortalModal: Orientation change detected, closing modal');
-        this.destroy();
+        this.destroy(); // Удаляем текущий UI
+        this.createUI(); // Создаем новый UI
       };
       window.addEventListener('orientationchange', this.orientationHandler);
     }
@@ -128,10 +135,17 @@ export class PortalModal {
     const invZoom = 1 / cam.zoom; // ✅ FIX BLUR: Компенсация zoom для всех текстов модального окна
     logger.log('MODAL_UI', 'PortalModal: Camera obtained');
 
-    // Получаем реальный размер canvas
-    const canvasRect = this.scene.game.canvas.getBoundingClientRect();
-    const canvasWidth = canvasRect.width;
-    const canvasHeight = canvasRect.height;
+    // Получаем реальный размер canvas (с защитой)
+    let canvasWidth: number;
+    let canvasHeight: number;
+    if (this.scene.game.canvas && typeof this.scene.game.canvas.getBoundingClientRect === 'function') {
+      const canvasRect = this.scene.game.canvas.getBoundingClientRect();
+      canvasWidth = canvasRect.width;
+      canvasHeight = canvasRect.height;
+    } else {
+      canvasWidth = this.scene.scale.width;
+      canvasHeight = this.scene.scale.height;
+    }
 
     // ✅ Используем calculateModalSize с теми же параметрами, что и KeyQuestionModal
     // IMPORTANT: Используем cam.width и cam.height напрямую (без деления на zoom)
@@ -144,8 +158,10 @@ export class PortalModal {
       'PortalModal'   // Имя модального окна для логов
     );
 
-    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (используем ModalPositioningHelper)
+    // ✅ GRID SNAPPING: Привязка к пиксельной сетке (как в KeyQuestionModal)
     // Чтобы избежать дробных пикселей при BASE_SCALE=4, координаты и размеры должны быть кратны 4 (или 8 для центрирования)
+    const snapToGrid = (val: number) => Math.round(val / BASE_SCALE) * BASE_SCALE;
+    const snapToGridDouble = (val: number) => Math.round(val / (BASE_SCALE * 2)) * (BASE_SCALE * 2);
 
     const modalWidth = snapToGridDouble(modalSize.width);
     const modalHeight = snapToGridDouble(modalSize.height);
@@ -173,34 +189,23 @@ export class PortalModal {
     const contentAreaTop = modalY - modalHeight / 2 + internalPadding;
     const contentAreaBottom = modalY + modalHeight / 2 - internalPadding;
 
-    // Получаем quizManager для получения самых длинных текстов
-    const quizManager = this.scene.data.get('quizManager') as QuizManager | undefined;
-    const currentLevel = this.scene.data.get('currentLevel') as number | undefined || 1;
-
-    // ✅ РАСЧЕТ ЕДИНОГО БАЗОВОГО РАЗМЕРА ШРИФТА (перенесено вверх)
-    const baseFontSize = calculateUnifiedBaseFontSize(this.scene, currentLevel);
-    logger.log('MODAL_SIZE', `PortalModal: Using unified base font size: ${baseFontSize.toFixed(2)}px`);
-
-    let longestTexts;
-    if (quizManager) {
-      longestTexts = quizManager.getLongestTexts(currentLevel);
-    } else {
-      longestTexts = {
-        question: this.config.globalQuestion?.questionText || 'Do you want to enter this portal?',
-        answer: 'ENTER PORTAL',
-        feedback: this.config.portalConfig.answerText,
-        maxLength: 50
-      };
-    }
+    // Тексты
+    const titleTextContent = 'ПОРТАЛ ОТКРЫТ!';
+    const questionTextContent = this.config.globalQuestion?.questionText || 'Do you want to enter this portal?';
+    const answerTextContent = this.config.portalConfig.answerText;
+    const enterButtonText = 'ВОЙТИ В ПОРТАЛ';
+    const cancelButtonText = 'ОТМЕНА';
 
     // Фон (неинтерактивный, чтобы клики проходили к кнопкам)
     if (AB_TESTING.USE_NINE_SLICE_MODAL) {
+      // ✅ RESTORED: Используем дефолтные параметры (без аргументов texture/tileSize), как в бэкапе
       this.background = new NineSliceBackground(
         this.scene,
         modalX,
         modalY,
         modalWidth,
         modalHeight
+        // texture по умолчанию 'ui_dialog_box', tileSize по умолчанию 8
       ).setDepth(DEPTHS.SCREEN.MODAL_BG).setScrollFactor(0);
     } else {
       this.background = this.scene.add.rectangle(
@@ -234,7 +239,6 @@ export class PortalModal {
     const buttonHeight = blockHeight;
 
     // ✅ РАСЧЕТ ПОЗИЦИЙ: создаем массив позиций снизу вверх
-    // Порядок снизу вверх: кнопка Отмена (index 0), кнопка Войти (index 1), ответ (index 2), вопрос+картинка (index 3), заголовок (index 4)
     const blockPositions: number[] = [];
     let currentY = contentAreaBottom; // Начинаем с нижнего края
 
@@ -256,183 +260,257 @@ export class PortalModal {
     const enterButtonY = blockPositions[1]; // Кнопка Войти
     const cancelButtonY = blockPositions[0]; // Кнопка Отмена - самая нижняя
 
-    // ✅ Единый базовый размер шрифта уже рассчитан в начале метода (baseFontSize)
+    // ✅ ЕДИНЫЙ PADDING ДЛЯ ВСЕХ 5 БЛОКОВ (вопрос, ответ, 3 кнопки/элемента)
+    // Базовые отступы в пикселях исходной графики масштабируются через BASE_SCALE
+    // Аналогично KeyQuestionModal
+    const blockPadding = getButtonPadding(contentAreaWidth, blockHeight);
+    const blockAvailableWidth = blockPadding.availableWidth;   // contentAreaWidth - (paddingX * 2)
+    const blockAvailableHeight = blockPadding.availableHeight; // blockHeight - (paddingY * 2)
 
-    logger.log('MODAL_SIZE', `PortalModal: baseFontSize (unified): ${baseFontSize.toFixed(2)}px`);
+    logger.log('MODAL_SIZE', `PortalModal Block Padding: width=${contentAreaWidth.toFixed(0)}→${blockAvailableWidth.toFixed(0)}, height=${blockHeight.toFixed(1)}→${blockAvailableHeight.toFixed(1)}`);
 
-    // ✅ Единый базовый размер шрифта уже рассчитан в начале метода (baseFontSize)
-    // ✅ Используем его напрямую для всех элементов, как в KeyQuestionModal
-    const questionFontSizeRaw = baseFontSize;
-    const answerFontSizeRaw = baseFontSize;
-    const titleFontSizeRaw = baseFontSize;
-    logger.log('MODAL_SIZE', `PortalModal: All elements use baseFontSize: ${baseFontSize.toFixed(2)}px`);
+    // ✅ УРОВНЕВЫЙ РАСЧЁТ ШРИФТОВ (Tiered Font Logic: A/B/C/D)
+    // Размеры рассчитываются динамически на основе доступных размеров поля
+    // ПОЛНАЯ КОПИЯ ЛОГИКИ ИЗ KeyQuestionModal
 
-    // ✅ Кнопки: рассчитываем размер для кнопок с тем же базовым размером
-    const buttonWidth = contentAreaWidth;
-    logger.log('MODAL_SIZE', `PortalModal: buttonWidth: ${buttonWidth}, buttonHeight: ${buttonHeight}`);
+    // ✅ FIX: Пересчитываем в НАТИВНЫЕ координаты (компенсация setScale(invZoom))
+    const nativeAvailableWidth = blockAvailableWidth / invZoom;
+    const nativeAvailableHeight = blockAvailableHeight / invZoom;
 
-    // ✅ ВАЖНО: Используем тот же baseFontSize для кнопок, что и для текстовых элементов
-    // ✅ Кнопки используют unifiedFontSize (как в KeyQuestionModal)
-    let buttonFontSizeRaw = baseFontSize; // ✅ Используем baseFontSize напрямую, без отдельного расчёта
-    logger.log('MODAL_SIZE', `PortalModal: Button: base=${baseFontSize.toFixed(2)}px, final=${buttonFontSizeRaw.toFixed(2)}px`);
+    logger.log('MODAL_SIZE', `PortalModal Native Dimensions: virtual: ${blockAvailableWidth.toFixed(0)}×${blockAvailableHeight.toFixed(1)} → native: ${nativeAvailableWidth.toFixed(0)}×${nativeAvailableHeight.toFixed(1)} (invZoom=${invZoom.toFixed(3)})`);
 
-    // ✅ Находим минимальный размер для всех элементов (включая кнопки)
-    // Это гарантирует единообразие размера текста во всех элементах
-    let unifiedFontSize = Math.min(titleFontSizeRaw, questionFontSizeRaw, answerFontSizeRaw, buttonFontSizeRaw);
-    logger.log('MODAL_SIZE', `PortalModal: unifiedFontSize (all elements): ${unifiedFontSize.toFixed(2)}px`);
+    // ✅ НОВАЯ СИСТЕМА ABCDEF: чистая символьная арифметика (нативные координаты)
 
-    const baseFitsOverall = Math.abs(unifiedFontSize - baseFontSize) < 0.01;
-    const unifiedClamped = unifiedFontSize === MIN_FONT_SIZE_TEXT || unifiedFontSize === MAX_FONT_SIZE;
-    logger.log('MODAL_SIZE', `PortalModal: Final unified: base=${baseFontSize.toFixed(2)}px, final=${unifiedFontSize.toFixed(2)}px, baseFits=${baseFitsOverall}, clamped=${unifiedClamped}`);
+    // ═══════════════════════════════════════════════════════
+    // ✅ РАСЧЕТ ШРИФТОВ:
+    // ═══════════════════════════════════════════════════════
 
-    // ✅ Применяем единый множитель 1.3 как в KeyQuestionModal
-    const FINAL_MULTIPLIER = 1.3;
-    const titleFontSize = unifiedFontSize * FINAL_MULTIPLIER;
-    const questionFontSize = unifiedFontSize * FINAL_MULTIPLIER;
-    const answerFontSize = unifiedFontSize * FINAL_MULTIPLIER;
-    // ✅ Кнопки используют тот же unifiedFontSize, что и текстовые элементы
-    const buttonFontSize = unifiedFontSize * FINAL_MULTIPLIER;
+    // ✅ НОВАЯ СИСТЕМА ABCDEF: чистая символьная арифметика (нативные координаты)
 
-    logger.log('MODAL_SIZE', `PortalModal: FINAL_MULTIPLIER: ${FINAL_MULTIPLIER}, FINAL SIZES: title=${titleFontSize.toFixed(2)}, question=${questionFontSize.toFixed(2)}, answer=${answerFontSize.toFixed(2)}, button=${buttonFontSize.toFixed(2)}`);
+    // Title (sans-serif)
+    const titleFontSize = calculatePortalTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      titleTextContent
+    ) * PORTAL_TITLE_FONT_MULTIPLIER;
 
-    // ✅ Заголовок - самый верхний блок (как в GameOverModal)
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
+    // Question (sans-serif)
+    // Используем тот же алгоритм, что и в KeyQuestionModal, но в независимой функции
+    const questionFontSize = calculatePortalTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      questionTextContent
+    ) * PORTAL_QUESTION_FONT_MULTIPLIER;
+
+    // Answer (sans-serif)
+    const answerFontSize = calculatePortalTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      answerTextContent
+    ) * PORTAL_ANSWER_FONT_MULTIPLIER;
+
+    // Buttons (sans-serif)
+    const enterBtnFontSize = calculatePortalTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      enterButtonText
+    ) * PORTAL_BUTTON_FONT_MULTIPLIER;
+
+    const cancelBtnFontSize = calculatePortalTieredFontSize(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      cancelButtonText
+    ) * PORTAL_BUTTON_FONT_MULTIPLIER;
+
+    // Берем минимальный, чтобы кнопки были одинаковые
+    const buttonFontSize = Math.min(enterBtnFontSize, cancelBtnFontSize);
+
+    logger.log('MODAL_SIZE', `PortalModal [SYNCED]: title=${titleFontSize.toFixed(1)}, question=${questionFontSize.toFixed(1)}, answer=${answerFontSize.toFixed(1)}, button=${buttonFontSize.toFixed(1)}`);
+
+    // ═══════════════════════════════════════════════════════
+    // ✅ DEBUG: ОТРИСОВКА РАМОК БЛОКОВ И ТЕКСТА
+    // ═══════════════════════════════════════════════════════
+    if (DEBUG_MODAL_BOUNDS) {
+      if (this.debugGraphics) this.debugGraphics.destroy(); // Safety check
+      this.debugGraphics = this.scene.add.graphics();
+      this.debugGraphics.setDepth(3000).setScrollFactor(0).disableInteractive();
+
+      // Цвета для каждого блока
+      const colors = {
+        title: 0xff00ff, question: 0x00ff00, answer: 0x00ffff, enter: 0xffff00, cancel: 0xff8800
+      };
+
+      const contentAreaLeft = modalX - contentAreaWidth / 2;
+
+      // 1. Рамки самих блоков (Occupied Layout Blocks)
+      this.debugGraphics.lineStyle(2, colors.title, 0.8);
+      this.debugGraphics.strokeRect(contentAreaLeft, titleY - blockHeight / 2, contentAreaWidth, blockHeight);
+      this.debugGraphics.lineStyle(2, colors.question, 0.8);
+      this.debugGraphics.strokeRect(contentAreaLeft, questionY - blockHeight / 2, contentAreaWidth, blockHeight);
+      this.debugGraphics.lineStyle(2, colors.answer, 0.8);
+      this.debugGraphics.strokeRect(contentAreaLeft, answerY - blockHeight / 2, contentAreaWidth, blockHeight);
+      this.debugGraphics.lineStyle(2, colors.enter, 0.8);
+      this.debugGraphics.strokeRect(contentAreaLeft, enterButtonY - blockHeight / 2, contentAreaWidth, blockHeight);
+      this.debugGraphics.lineStyle(2, colors.cancel, 0.8);
+      this.debugGraphics.strokeRect(contentAreaLeft, cancelButtonY - blockHeight / 2, contentAreaWidth, blockHeight);
+
+      // 2. Рамки ДОСТУПНОГО пространства для текста (Blue) - показываем AVAILABLE area
+      // Теперь это использует blockAvailableWidth (с учетом паддинга из getButtonPadding)
+      const availableColor = 0x0088ff; // Blue
+      this.debugGraphics.lineStyle(1, availableColor, 1.0);
+
+      const debugAvailableW = blockAvailableWidth;
+      const debugAvailableH = blockAvailableHeight;
+
+      const drawAvailableRect = (centerY: number) => {
+        this.debugGraphics!.strokeRect(
+          modalX - debugAvailableW / 2,
+          centerY - debugAvailableH / 2,
+          debugAvailableW,
+          debugAvailableH
+        );
+      };
+
+      drawAvailableRect(titleY);
+      drawAvailableRect(questionY); // для вопроса - общий случай (без картинки)
+      drawAvailableRect(answerY);
+      drawAvailableRect(enterButtonY);
+      drawAvailableRect(cancelButtonY);
+    }
+
+
+    // ✅ Заголовок - самый верхний блок
+    // ✅ Округляем координаты до целых пикселей
     const titleTextX = Math.round(modalX);
     const titleTextY = Math.round(titleY);
 
-    logger.log('MODAL_SIZE', `PortalModal: Title position - X=${titleTextX}, Y=${titleTextY}`);
-
     // ✅ wordWrap width должен учитывать invZoom для правильного переноса строк
-    const titleWordWrapWidth = (contentAreaWidth * 0.95) / invZoom;
+    // Используем nativeAvailableWidth!
+    const titleWordWrapWidth = nativeAvailableWidth;
 
     this.titleText = this.scene.add.text(
-      titleTextX, // ✅ Округлено до целого пикселя
-      titleTextY, // ✅ Округлено до целого пикселя
-      'ПОРТАЛ ОТКРЫТ!',
+      titleTextX,
+      titleTextY,
+      titleTextContent,
       {
         fontSize: `${Math.round(titleFontSize)}px`,
-        fontFamily: DEFAULT_FONT_FAMILY, // ✅ Унифицировано с KeyQuestionModal
+        fontFamily: DEFAULT_FONT_FAMILY,
         fontStyle: PORTAL_TITLE_FONT_STYLE,
         color: PORTAL_TITLE_COLOR,
-        wordWrap: { width: titleWordWrapWidth }, // ✅ Учтён invZoom для правильного переноса
+        wordWrap: { width: titleWordWrapWidth },
         align: 'center'
       }
     ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_CLOSE).setScrollFactor(0);
 
-    // ✅ Устанавливаем разрешение = 1 для пиксельного шрифта
     this.titleText.setResolution(textResolution);
-
-    // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
     this.titleText.setScale(invZoom);
 
-    // ✅ Защита от переполнения убрана - размер уже рассчитан корректно через calculateUnifiedBaseFontSize
 
     // ✅ Вопрос и картинка - в одном блоке
-    const questionTextToDisplay = this.config.globalQuestion?.questionText || 'Do you want to enter this portal?';
     const hasImage = !!this.config.globalQuestion?.image;
 
     // ✅ Определяем размещение в зависимости от наличия картинки
     if (hasImage) {
-      // === С КАРТИНКОЙ: текст слева (align: 'right'), картинка справа ===
-      // ✅ Правый край контента (где заканчиваются кнопки)
+      // === С КАРТИНКОЙ ===
       const contentRightEdge = modalX + contentAreaWidth / 2;
-      const gap = 15; // Отступ между текстом и картинкой (в виртуальных пикселях)
+      const gap = 15;
 
-      // ✅ Сначала загружаем картинку, чтобы узнать её размеры после масштабирования
       let scaledImageWidth = 0;
       let imageKey = '';
 
       try {
         const assetLoader = (this.scene as any).assetLoader as AssetLoader | undefined;
         if (assetLoader) {
-          imageKey = this.config.globalQuestion!.image.replace('.png', '').replace('.jpg', '').replace('.jpeg', '');
+          imageKey = this.config.globalQuestion!.image!.replace('.png', '').replace('.jpg', '').replace('.jpeg', '');
           imageKey = imageKey.replace(/^QuizGame_/, '');
-          let imagePath = this.config.globalQuestion!.image.replace(/^QuizGame_/, '');
+          let imagePath = this.config.globalQuestion!.image!.replace(/^QuizGame_/, '');
 
-          logger.log('MODAL_UI', `PortalModal: Loading question image: ${imageKey} (${imagePath})`);
           await assetLoader.loadImage(imageKey, imagePath);
 
           if (this.scene.textures.exists(imageKey)) {
-            // ✅ Вычисляем масштаб картинки
             const maxImgHeight = questionAreaHeight * 0.9;
-            const maxImgWidth = contentAreaWidth * 0.45; // Ограничение ширины (45%)
+            const maxImgWidth = contentAreaWidth * 0.45;
 
-            const tempImage = this.scene.add.image(0, 0, imageKey); // Временный образец для получения размеров
+            const tempImage = this.scene.add.image(0, 0, imageKey);
             const scale = Math.min(maxImgWidth / tempImage.width, maxImgHeight / tempImage.height);
             scaledImageWidth = tempImage.width * scale;
             tempImage.destroy();
-
-            logger.log('MODAL_UI', `PortalModal: Image scaled width: ${scaledImageWidth.toFixed(1)}, scale: ${scale.toFixed(3)}`);
-          } else {
-            logger.warn('MODAL_UI', `PortalModal: Image texture not found: ${imageKey}`);
           }
-        } else {
-          logger.warn('MODAL_UI', 'PortalModal: AssetLoader not available');
         }
       } catch (error) {
         logger.log('MODAL_UI', '❌ PortalModal: Error loading question image', error);
       }
 
-      // ✅ Позиционируем изображение: правый край совпадает с правым краем контента (кнопок)
-      // Image origin (0, 0.5) значит позиция - это левый край изображения
-      // Чтобы правый край был на contentRightEdge: imageLeftEdge = contentRightEdge - scaledImageWidth
       const imageLeftEdge = contentRightEdge - scaledImageWidth; // ✅ Без internalPadding
       const imageX = Math.round(imageLeftEdge);
       const imageY = Math.round(questionY);
 
-      // ✅ Текст вопроса: правый край текста у левого края картинки (с отступом gap)
-      // Text origin (1, 0.5) значит позиция - это правый край текста
       const textRightEdge = imageLeftEdge - gap;
       const questionTextX = Math.round(textRightEdge);
       const questionTextY = Math.round(questionY);
 
-      // ✅ Ширина текста для wordWrap: от левого края контента до правого края текста
       const textWidthAvailable = textRightEdge - (modalX - contentAreaWidth / 2);
+
+      // Используем нативную ширину для WordWrap
       const questionWordWrapWidth = Math.max(50, textWidthAvailable) / invZoom;
 
-      // ✅ Уменьшаем размер шрифта текста вопроса на 0.8 при наличии картинки
-      const questionFontSizeWithImage = questionFontSize * 0.8;
+      const questionFontSizeWithImage = questionFontSize; // No longer scaled by 0.8
+
+      // ✅ DEBUG DRAW for Question Text Area (Available)
+      if (DEBUG_MODAL_BOUNDS && this.debugGraphics) {
+        const availX = modalX - contentAreaWidth / 2; // Left edge of content area
+        const availW = textWidthAvailable;
+        const availH = blockAvailableHeight; // Use blockAvailableHeight
+        // Draw blue box for text available area
+        this.debugGraphics.strokeRect(availX, questionY - availH / 2, availW, availH);
+      }
 
       this.questionText = this.scene.add.text(
         questionTextX,
         questionTextY,
-        questionTextToDisplay,
+        questionTextContent,
         {
           fontSize: `${questionFontSizeWithImage}px`,
           fontFamily: DEFAULT_FONT_FAMILY,
           fontStyle: PORTAL_QUESTION_FONT_STYLE,
           color: PORTAL_QUESTION_COLOR,
           wordWrap: { width: questionWordWrapWidth },
-          align: 'right' // ✅ Выравнивание по правому краю
+          align: 'right'
         }
       ).setOrigin(1, 0.5).setDepth(DEPTHS.SCREEN.MODAL_BUTTON).setScrollFactor(0);
 
       this.questionText.setResolution(textResolution);
       this.questionText.setScale(invZoom);
 
-      // ✅ Создаем изображение после расчета позиции
       if (imageKey && this.scene.textures.exists(imageKey)) {
         this.questionImage = this.scene.add.image(imageX, imageY, imageKey)
           .setOrigin(0, 0.5).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
 
-        // ✅ Применяем масштаб (уже вычислен выше)
+        // Повторный расчет масштаба для установки
         const maxImgHeight = questionAreaHeight * 0.9;
         const maxImgWidth = contentAreaWidth * 0.45;
         const scale = Math.min(maxImgWidth / this.questionImage.width, maxImgHeight / this.questionImage.height);
         this.questionImage.setScale(scale);
-
-        logger.log('MODAL_UI', `PortalModal: Question image created at (${imageX}, ${imageY}), scaled width: ${(this.questionImage.width * scale).toFixed(1)}`);
       }
     } else {
-      // === БЕЗ КАРТИНКИ: текст по центру ===
+      // === БЕЗ КАРТИНКИ ===
       const questionTextX = Math.round(modalX);
       const questionTextY = Math.round(questionY);
-      const questionWordWrapWidth = (contentAreaWidth * 0.95) / invZoom;
+
+      // Используем нативную ширину для WordWrap
+      const questionWordWrapWidth = nativeAvailableWidth;
+
+      // ✅ DEBUG DRAW for Question Text Area (Available) - Full width
+      if (DEBUG_MODAL_BOUNDS && this.debugGraphics) {
+        const availW = blockAvailableWidth;
+        const availH = blockAvailableHeight;
+        this.debugGraphics.strokeRect(modalX - availW / 2, questionY - availH / 2, availW, availH);
+      }
 
       this.questionText = this.scene.add.text(
         questionTextX,
         questionTextY,
-        questionTextToDisplay,
+        questionTextContent,
         {
           fontSize: `${questionFontSize}px`,
           fontFamily: DEFAULT_FONT_FAMILY,
@@ -447,76 +525,58 @@ export class PortalModal {
       this.questionText.setScale(invZoom);
     }
 
-    // ✅ Логирование размера шрифта вопроса
-    logger.log('MODAL_SIZE', `PortalModal: Question text: fontSize=${questionFontSize.toFixed(2)}px, hasImage=${hasImage}, text="${questionTextToDisplay.substring(0, 50)}..."`);
-
-    // ✅ Создаем невидимую область для картинки (только если картинки нет)
+    // ✅ Создаем невидимую область для картинки
     if (!hasImage) {
       this.imageArea = this.scene.add.rectangle(
         Math.round(modalX),
         Math.round(questionY),
         contentAreaWidth,
         questionAreaHeight,
-        0x1a202c,
-        0.0 // Полностью прозрачный фон (невидимый)
+        0x1a202c, 0.0
       ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
     }
 
-    // ✅ Ответ на глобальный вопрос - убираем "Destination: " и черный фон
-    // ✅ В debug режиме правильный портал зелёный, в обычном - красно-оранжевый
+    // ✅ Ответ на глобальный вопрос
     const portalColor = this.config.portalConfig.isCorrect
       ? (DEBUG_QUIZ_PORTAL ? PORTAL_INFO_CORRECT_COLOR_DEBUG : PORTAL_INFO_CORRECT_COLOR)
       : PORTAL_INFO_WRONG_COLOR;
 
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
     const answerTextX = Math.round(modalX);
     const answerTextY = Math.round(answerY);
 
-    // ✅ Используем только текст ответа, без "Destination: "
-    const answerTextToDisplay = this.config.portalConfig.answerText;
-
-    // ✅ wordWrap width должен учитывать invZoom для правильного переноса строк
     const answerWordWrapWidth = (contentAreaWidth * 0.95) / invZoom;
 
     this.portalInfoText = this.scene.add.text(
-      answerTextX, // ✅ Округлено до целого пикселя
-      answerTextY, // ✅ Округлено до целого пикселя
-      answerTextToDisplay, // ✅ Только текст ответа
+      answerTextX,
+      answerTextY,
+      answerTextContent,
       {
         fontSize: `${answerFontSize}px`,
-        fontFamily: DEFAULT_FONT_FAMILY, // ✅ Унифицировано с KeyQuestionModal
+        fontFamily: DEFAULT_FONT_FAMILY,
         fontStyle: PORTAL_INFO_FONT_STYLE,
         color: portalColor,
-        // ✅ Убраны backgroundColor и padding
-        wordWrap: { width: answerWordWrapWidth }, // ✅ Учтён invZoom для правильного переноса
+        wordWrap: { width: answerWordWrapWidth },
         align: 'center'
       }
     ).setOrigin(0.5).setDepth(DEPTHS.SCREEN.MODAL_TEXT).setScrollFactor(0);
 
-    // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
     this.portalInfoText.setResolution(textResolution);
-
-    // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
     this.portalInfoText.setScale(invZoom);
 
-    // ✅ Защита от переполнения убрана - размер уже рассчитан корректно через calculateUnifiedBaseFontSize
-
-    // ✅ Логирование размера шрифта ответа
-    logger.log('MODAL_SIZE', `PortalModal: Answer text: fontSize=${answerFontSize.toFixed(2)}px, text="${answerTextToDisplay}"`);
-
     // ✅ Кнопка Войти
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
     const enterButtonX = Math.round(modalX);
     const roundedEnterButtonY = Math.round(enterButtonY);
+    // ✅ FIX: Нативные пиксели для wordWrap
+    const buttonWordWrapWidth = (contentAreaWidth * 0.95) / invZoom;
 
     this.enterButton = new Button(this.scene, {
-      x: enterButtonX, // ✅ Округлено до целого пикселя
-      y: roundedEnterButtonY, // ✅ Округлено до целого пикселя
+      x: enterButtonX,
+      y: roundedEnterButtonY,
       width: contentAreaWidth,
       height: buttonHeight,
-      text: 'ВОЙТИ В ПОРТАЛ',
-      fontSize: buttonFontSize, // ✅ В 1.5 раза больше общего размера
-      wordWrap: { width: contentAreaWidth }, // ✅ Максимальная ширина для переноса
+      text: enterButtonText,
+      fontSize: buttonFontSize,
+      wordWrap: { width: buttonWordWrapWidth }, // ✅ FIXED: native pixels
       onClick: () => {
         logger.log('BUTTON_EVENTS', 'PortalModal: Enter button onClick triggered');
         this.handleEnter();
@@ -524,41 +584,28 @@ export class PortalModal {
     });
     this.enterButton.setDepth(DEPTHS.SCREEN.MODAL_BUTTON);
 
-    // ✅ Логирование размера шрифта кнопки Войти
-    logger.log('MODAL_SIZE', `PortalModal: Enter button: fontSize=${buttonFontSize.toFixed(2)}px`);
-
     // ✅ Кнопка Отмена
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
     const cancelButtonX = Math.round(modalX);
     const roundedCancelButtonY = Math.round(cancelButtonY);
 
     this.cancelButton = new Button(this.scene, {
-      x: cancelButtonX, // ✅ Округлено до целого пикселя
-      y: roundedCancelButtonY, // ✅ Округлено до целого пикселя
+      x: cancelButtonX,
+      y: roundedCancelButtonY,
       width: contentAreaWidth,
       height: buttonHeight,
-      text: 'ОТМЕНА',
-      fontSize: buttonFontSize, // ✅ В 1.5 раза больше общего размера
-      wordWrap: { width: contentAreaWidth }, // ✅ Максимальная ширина для переноса
+      text: cancelButtonText,
+      fontSize: buttonFontSize,
+      wordWrap: { width: buttonWordWrapWidth }, // ✅ FIXED: native pixels
       onClick: () => {
         logger.log('BUTTON_EVENTS', 'PortalModal: Cancel button onClick triggered');
         this.handleCancel();
       }
     });
     this.cancelButton.setDepth(DEPTHS.SCREEN.MODAL_BUTTON);
-
-    // ✅ Логирование размера шрифта кнопки Отмена
-    logger.log('MODAL_SIZE', `PortalModal: Cancel button: fontSize=${buttonFontSize.toFixed(2)}px`);
   }
 
   private handleEnter(): void {
-    // ✅ Защита от случайных нажатий - только проверка buttonsEnabled
-    if (!this.buttonsEnabled) {
-      logger.log('BUTTON_EVENTS', 'PortalModal: Enter button click ignored - buttons not enabled yet');
-      return;
-    }
-
-    logger.log('BUTTON_EVENTS', 'PortalModal: Enter button clicked - calling onEnter');
+    if (!this.buttonsEnabled) return;
 
     // Воспроизводим звук входа в портал
     const audioManager = this.scene.data.get('audioManager');
@@ -566,38 +613,21 @@ export class PortalModal {
       audioManager.playPortalEnter();
     }
 
-    // ✅ Отключаем кнопки сразу, чтобы предотвратить повторные нажатия
     this.buttonsEnabled = false;
-
-    // ✅ Сохраняем callback перед уничтожением
     const enterCallback = this.config.onEnter;
-
-    // ✅ Уничтожаем модальное окно СРАЗУ
     this.destroy();
 
-    // ✅ Вызываем callback ПОСЛЕ уничтожения
     if (enterCallback) {
       try {
         enterCallback();
-        logger.log('MODAL_UI', 'PortalModal: onEnter callback executed successfully');
       } catch (error) {
         logger.log('MODAL_UI', '❌ PortalModal: Error in onEnter callback', error);
       }
-    } else {
-      logger.log('MODAL_UI', '❌ PortalModal: onEnter callback is undefined');
     }
   }
 
   private handleCancel(): void {
-    logger.log('BUTTON_EVENTS', `PortalModal: handleCancel() called, buttonsEnabled: ${this.buttonsEnabled}`);
-
-    // ✅ Защита от случайных нажатий - только проверка buttonsEnabled
-    if (!this.buttonsEnabled) {
-      logger.log('BUTTON_EVENTS', 'PortalModal: Cancel button click ignored - buttons not enabled yet');
-      return;
-    }
-
-    logger.log('BUTTON_EVENTS', 'PortalModal: Cancel button clicked - calling onCancel callback');
+    if (!this.buttonsEnabled) return;
 
     // Воспроизводим звук отмены портала
     const audioManager = this.scene.data.get('audioManager');
@@ -605,65 +635,48 @@ export class PortalModal {
       audioManager.playPortalCancel();
     }
 
-    // ✅ Отключаем кнопки сразу, чтобы предотвратить повторные нажатия
     this.buttonsEnabled = false;
-
-    // ✅ Сохраняем callback перед уничтожением
     const cancelCallback = this.config.onCancel;
-    logger.log('MODAL_UI', `PortalModal: cancelCallback exists: ${!!cancelCallback}`);
 
-    // ✅ Вызываем callback ПЕРЕД уничтожением (чтобы гарантировать выполнение)
     if (cancelCallback) {
       try {
-        logger.log('MODAL_UI', 'PortalModal: Executing onCancel callback...');
         cancelCallback();
-        logger.log('MODAL_UI', 'PortalModal: onCancel callback executed successfully');
       } catch (error) {
         logger.log('MODAL_UI', '❌ PortalModal: Error in onCancel callback', error);
       }
-    } else {
-      logger.log('MODAL_UI', '❌ PortalModal: onCancel callback is undefined');
     }
-
-    // ✅ Уничтожаем модальное окно ПОСЛЕ вызова callback
-    logger.log('MODAL_UI', 'PortalModal: Destroying modal...');
     this.destroy();
-    logger.log('MODAL_UI', 'PortalModal: Modal destroyed');
   }
 
   public destroy(): void {
-    // ✅ Удаляем слушатель поворота экрана
     if (this.orientationHandler && typeof window !== 'undefined') {
       window.removeEventListener('orientationchange', this.orientationHandler);
       this.orientationHandler = undefined;
     }
 
-    this.background.destroy();
-    this.titleText.destroy();
-    this.questionText.destroy();
-    if (this.imageArea) {
-      this.imageArea.destroy();
+    if (this.debugGraphics) {
+      this.debugGraphics.destroy();
+      this.debugGraphics = undefined;
     }
-    if (this.questionImage) {
-      this.questionImage.destroy();
-    }
-    this.portalInfoText.destroy();
-    this.enterButton.destroy();
-    this.cancelButton.destroy();
+
+    if (this.background) this.background.destroy();
+    if (this.titleText) this.titleText.destroy();
+    if (this.questionText) this.questionText.destroy();
+    if (this.imageArea) this.imageArea.destroy();
+    if (this.questionImage) this.questionImage.destroy();
+    if (this.portalInfoText) this.portalInfoText.destroy();
+    if (this.enterButton) this.enterButton.destroy();
+    if (this.cancelButton) this.cancelButton.destroy();
   }
 
   public setVisible(visible: boolean): void {
-    this.background.setVisible(visible);
-    this.titleText.setVisible(visible);
-    this.questionText.setVisible(visible);
-    if (this.imageArea) {
-      this.imageArea.setVisible(visible);
-    }
-    if (this.questionImage) {
-      this.questionImage.setVisible(visible);
-    }
-    this.portalInfoText.setVisible(visible);
-    this.enterButton.setVisible(visible);
-    this.cancelButton.setVisible(visible);
+    if (this.background) this.background.setVisible(visible);
+    if (this.titleText) this.titleText.setVisible(visible);
+    if (this.questionText) this.questionText.setVisible(visible);
+    if (this.imageArea) this.imageArea.setVisible(visible);
+    if (this.questionImage) this.questionImage.setVisible(visible);
+    if (this.portalInfoText) this.portalInfoText.setVisible(visible);
+    if (this.enterButton) this.enterButton.setVisible(visible);
+    if (this.cancelButton) this.cancelButton.setVisible(visible);
   }
 }

@@ -1,8 +1,8 @@
 # Current Context - Snapshot
 
-**Last Updated:** 2026-02-13 (session)
-**Branch:** `master` (first commit: 022b536)
-**Status:** Modal Windows Improvements 🔄 IN PROGRESS
+**Last Updated:** 2026-02-17 (session)
+**Branch:** `main`
+**Status:** MAX_FONT_SIZE limits for modal windows ✅ DONE
 
 ---
 
@@ -10,73 +10,52 @@
 
 | Setting | Value |
 |---------|-------|
-| **Port** | `3000` (dev), `4173` (preview) |
-| **Start Command** | `npm run dev` / `npm run build && npm run preview` |
-| **Server Status** | ✅ RUNNING (background, task: b7834ca) |
+| **Port** | `3000` (dev) |
+| **Start Command** | `npm run dev` |
 | **Browser** | Chrome (chrome-devtools-mcp) |
-| **Tests** | ✅ 1843/1843 passing |
-| **Git** | ✅ Initialized (first commit: 022b536) |
+| **Tests** | ✅ 670/675 passed |
+| **Git** | 📝 Modified |
 
 ---
 
 ## Current Focus
 
-**ТЕКУЩАЯ ЗАДАЧА:** Modal Windows Improvements (Шаг 1 ✅ ЗАВЕРШЁН)
-
-**Что сделано:**
-- ✅ ui-architect анализ завершён (отчёт в Plans/)
-- ✅ Ротация HISTORY.md выполнена
-- ✅ Детальный план PLAN.md создан с учётом зависимостей
-- ✅ Критические ограничения UI-Layout задокументированы
-- ✅ **Шаг 1:** Удалены 7 неиспользуемых React файлов
-  - Тесты: 1802/1802 passing (было 1843)
-
-**План работ (7 шагов):**
-1. ✅ Удалить неиспользуемые React компоненты — ЗАВЕРШЕНО
-2. ✅ Создать ModalPositioningHelper — ЗАВЕРШЕНО (242 строки, 19 тестов)
-3. ⏳ Рефакторинг PortalModal
-4. ⏳ Рефакторинг GameOverModal
-5. ⏳ Исправление CoinBubbleQuiz (динамические размеры)
-6. ⏳ Флаг отладки для логов кнопок
-7. ⏳ Обновление документации
-
-**Коммиты:**
-- `4c5d73e` docs: modal windows analysis and planning
-- `e608cd2` restore: pre-cleanup point before removing React modals (RESTORE POINT)
-- `61272f4` refactor: remove unused React modal components
-- `f626085` refactor: create ModalPositioningHelper for Grid Snapping utilities
-
-**⚠️ КРИТИЧЕСКИЕ ОГРАНЕЧЕНИЯ:**
-- НЕ менять FontSizeCalculator.ts
-- НЕ менять ModalSizeCalculator.ts
-- НЕ менять KeyQuestionModal.ts (особенно createUI())
+**ТЕКУЩАЯ ЗАДАЧА:** Ограничение верхнего порога размера шрифта для модальных окон ✅ DONE
 
 **Выполнено:**
-- ✅ Добавлены правила игры на экран загрузки (над заголовком)
-- ✅ Уменьшены шрифты: заголовок 36px, правила 14px, загрузка 16px, проценты 14px
-- ✅ Настроены отступы для предотвращения наложения элементов
-- ✅ Улучшено удаление DOM overlay после завершения загрузки
-- ✅ Build успешно выполнен
+- ✅ Добавлены константы `*_MODAL_MAX_FONT_SIZE = 42` для каждого типа окна
+- ✅ `calculateTieredFontSizeSimple` теперь поддерживает параметр `maxSize`
+- ✅ `calculateUnifiedBaseFontSize` задокументирована как ЗАРЕЗЕРВИРОВАНА
+- ✅ Созданы новые тесты для v3 Tiered Font System
+- ✅ Исправлено 670/675 тестов
+
+**Изменения в константах:**
+| Константа | Значение | Назначение |
+|-----------|----------|------------|
+| `KEY_QUESTION_MODAL_MAX_FONT_SIZE` | 42 | Потолок для KeyQuestionModal |
+| `PORTAL_MODAL_MAX_FONT_SIZE` | 42 | Потолок для PortalModal |
+| `GAMEOVER_MODAL_MAX_FONT_SIZE` | 42 | Потолок для GameOverModal |
+| `MAX_OPTIMAL_FONT_SIZE` | 48 | Глобальный потолок (было 125) |
 
 ---
 
-## Test Status
+## Next Steps
 
-✅ **1843/1843 Total tests passing**
+**Ожидание новых задач от пользователя.**
 
 ---
 
 ## Recent Completed Tasks
 
 | Дата | Задача | Статус |
-|------|-------|--------|
-| 2026-02-11 | Documentation Audit (Variant 3 - Full Review) | ✅ COMPLETED |
-| 2026-02-11 | Deploy + GitHub Actions | ✅ COMPLETED |
-| 2026-02-10 | Production Release Preparation | ✅ COMPLETED |
-| 2026-02-10 | Cleanup: Remove auto-history scripts | ✅ COMPLETED |
-| 2026-02-10 | Sound Button State Persistence | ✅ COMPLETED |
-| 2026-02-12 | OracleCollisionHandler Fix + UI Layout Docs | ✅ COMPLETED |
+|------|---------|---------|
+| 2026-02-17 | MAX_FONT_SIZE limits for modal windows | ✅ COMPLETED |
+| 2026-02-16 | Documentation Sync (MODAL_GUIDE.md, FONT_SIZING_SYSTEM.md) | ✅ COMPLETED |
+| 2026-02-16 | Modal Font Logic Documentation | ✅ COMPLETED |
+| 2026-02-14 | Modal Windows Improvements + Font Bugfix | ✅ COMPLETED |
+| 2026-02-13 | Modal Windows Improvements + Font Bugfix | ✅ COMPLETED |
 | 2026-02-12 | Loading Screen UI Improvements | ✅ COMPLETED |
+| 2026-02-12 | OracleCollisionHandler Fix + UI Layout Docs | ✅ COMPLETED |
 
 ---
 
@@ -88,17 +67,18 @@
 |--------|-------------|
 | `2026-02-11_bug-fixes-and-edge-cases/` | 2026-01-15 bug-fixes plan (выполнен) |
 | `2026-02-11_fix-all-failing-tests/` | 2026-01-16 test fixes (выполнен) |
-| `2026-02-11_refactoring-completed/` | Весь Refactoring/ (выполнен) |
+| `2026-02-11_refactoring-completed/` | Весь refactoring (выполнен) |
 | `2026-02-11_logging-refactor/` | Priority 4 logging (выполнен) |
-| `2026-02-11_test-errors-fix/` | Test errors fixes (выполнен) |
 | `2026-02-11_docs-update-coin-mechanic/` | Coin mechanic docs (выполнен) |
 | `2026-02-11_hardcode-audit/` | Hardcode audit (выполнен) |
 | `2026-02-11_adaptive-modal-aspect-ratio/` | Modal aspect ratio (выполнен) |
 | `2026-02-11_test-coverage/` | Test coverage (выполнен) |
 | `2026-02-11_tests-refactor-compliance/` | Tests refactor compliance (выполнен) |
+| `HISTORY_loading-screen-ui_2026-02-12.md` | Loading Screen UI milestone |
+| `2026-02-13_modal-windows-improvements_2026-02-13.md` | ✅ COMPLETED |
 
 **Оставшиеся в `documentation/Plans/`:**
-- `Tests/2026-01-20_create-new-tests_*` — IN PROGRESS (18/27 тестов создано)
+- `2026-02-13_modal-windows-improvements/` — ✅ COMPLETED
 
 ---
 

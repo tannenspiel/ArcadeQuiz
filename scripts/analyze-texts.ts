@@ -17,6 +17,13 @@ interface LongestTexts {
   maxLength: number;
 }
 
+interface LongestTextsMiniQuizzes {
+  question: string;
+  answer: string;
+  feedback: string;
+  maxLength: number;
+}
+
 interface QuestionData {
   question?: string;
   question_Sign?: {
@@ -118,6 +125,69 @@ function analyzeLevelData(levelData: LevelQuestionsData): LongestTexts {
 }
 
 /**
+ * Анализирует только miniQuizzes (для KeyQuestionModal)
+ * Не включает globalQuestion и globalQuestionWithImage
+ */
+function analyzeMiniQuizzes(levelData: LevelQuestionsData): LongestTextsMiniQuizzes {
+  let maxQuestion = '';
+  let maxAnswer = '';
+  let maxFeedback = '';
+
+  // Анализируем ТОЛЬКО miniQuizzes
+  if (levelData.miniQuizzes) {
+    levelData.miniQuizzes.forEach((quiz: QuestionData) => {
+      // Вопрос
+      if (quiz.question && quiz.question.length > maxQuestion.length) {
+        maxQuestion = quiz.question;
+      } else if (quiz.question_Sign?.text && quiz.question_Sign.text.length > maxQuestion.length) {
+        maxQuestion = quiz.question_Sign.text;
+      }
+
+      // Правильный ответ
+      if (quiz.correctAnswer && quiz.correctAnswer.length > maxAnswer.length) {
+        maxAnswer = quiz.correctAnswer;
+      }
+
+      // WrongAnswers тоже могут быть длиннее
+      if (quiz.wrongAnswers) {
+        quiz.wrongAnswers.forEach(answer => {
+          if (answer && answer.length > maxAnswer.length) {
+            maxAnswer = answer;
+          }
+        });
+      }
+
+      // Фидбэки
+      if (quiz.feedbacks) {
+        quiz.feedbacks.forEach(fb => {
+          if (fb && fb.length > maxFeedback.length) {
+            maxFeedback = fb;
+          }
+        });
+      }
+
+      // WrongFeedbacks тоже могут быть длиннее
+      if (quiz.wrongFeedbacks) {
+        quiz.wrongFeedbacks.forEach(fb => {
+          if (fb && fb.length > maxFeedback.length) {
+            maxFeedback = fb;
+          }
+        });
+      }
+    });
+  }
+
+  const maxLength = Math.max(maxQuestion.length, maxAnswer.length, maxFeedback.length);
+
+  return {
+    question: maxQuestion,
+    answer: maxAnswer,
+    feedback: maxFeedback,
+    maxLength
+  };
+}
+
+/**
  * Находит самый длинный текст из всех уровней
  */
 function findLongestTexts(levelsData: LevelQuestionsData[]): LongestTexts {
@@ -130,6 +200,34 @@ function findLongestTexts(levelsData: LevelQuestionsData[]): LongestTexts {
 
   levelsData.forEach(levelData => {
     const levelResult = analyzeLevelData(levelData);
+    if (levelResult.question.length > result.question.length) {
+      result.question = levelResult.question;
+    }
+    if (levelResult.answer.length > result.answer.length) {
+      result.answer = levelResult.answer;
+    }
+    if (levelResult.feedback.length > result.feedback.length) {
+      result.feedback = levelResult.feedback;
+    }
+  });
+
+  result.maxLength = Math.max(result.question.length, result.answer.length, result.feedback.length);
+  return result;
+}
+
+/**
+ * Находит самый длинный текст из всех уровней (только miniQuizzes)
+ */
+function findLongestTextsMiniQuizzes(levelsData: LevelQuestionsData[]): LongestTextsMiniQuizzes {
+  let result: LongestTextsMiniQuizzes = {
+    question: '',
+    answer: '',
+    feedback: '',
+    maxLength: 0
+  };
+
+  levelsData.forEach(levelData => {
+    const levelResult = analyzeMiniQuizzes(levelData);
     if (levelResult.question.length > result.question.length) {
       result.question = levelResult.question;
     }
@@ -167,7 +265,8 @@ async function main() {
       if (fs.existsSync(fallbackFile)) {
         const fallbackData = JSON.parse(fs.readFileSync(fallbackFile, 'utf-8'));
         const longestTexts = analyzeLevelData(fallbackData);
-        generateConstantsFile(outputFile, longestTexts);
+        const longestTextsMiniQuizzes = analyzeMiniQuizzes(fallbackData);
+        generateConstantsFile(outputFile, longestTexts, longestTextsMiniQuizzes);
         console.log('✅ Generated constants from level1 fallback');
         return;
       } else {
@@ -187,15 +286,22 @@ async function main() {
 
     // Находим самые длинные тексты
     const longestTexts = findLongestTexts(levelsData);
+    const longestTextsMiniQuizzes = findLongestTextsMiniQuizzes(levelsData);
 
     // Генерируем файл констант
-    generateConstantsFile(outputFile, longestTexts);
+    generateConstantsFile(outputFile, longestTexts, longestTextsMiniQuizzes);
 
     console.log('✅ Generated constants file:', outputFile);
-    console.log(`   Longest question: ${longestTexts.question.length} chars`);
-    console.log(`   Longest answer: ${longestTexts.answer.length} chars`);
-    console.log(`   Longest feedback: ${longestTexts.feedback.length} chars`);
-    console.log(`   Max length: ${longestTexts.maxLength} chars`);
+    console.log('   All question types:');
+    console.log(`     Longest question: ${longestTexts.question.length} chars`);
+    console.log(`     Longest answer: ${longestTexts.answer.length} chars`);
+    console.log(`     Longest feedback: ${longestTexts.feedback.length} chars`);
+    console.log(`     Max length: ${longestTexts.maxLength} chars`);
+    console.log('   MiniQuizzes only (for KeyQuestionModal):');
+    console.log(`     Longest question: ${longestTextsMiniQuizzes.question.length} chars`);
+    console.log(`     Longest answer: ${longestTextsMiniQuizzes.answer.length} chars`);
+    console.log(`     Longest feedback: ${longestTextsMiniQuizzes.feedback.length} chars`);
+    console.log(`     Max length: ${longestTextsMiniQuizzes.maxLength} chars`);
 
   } catch (error) {
     console.error('❌ Error analyzing texts:', error);
@@ -206,15 +312,31 @@ async function main() {
 /**
  * Генерирует файл с константами
  */
-function generateConstantsFile(outputPath: string, longestTexts: LongestTexts) {
+function generateConstantsFile(outputPath: string, longestTexts: LongestTexts, longestTextsMiniQuizzes: LongestTextsMiniQuizzes) {
   const content = `// Этот файл автоматически генерируется скриптом scripts/analyze-texts.ts
 // Не редактировать вручную!
 
+// Самые длинные тексты из ВСЕХ типов вопросов (miniQuizzes + globalQuizzes + globalQuestionWithImage)
 export const LONGEST_TEXTS = {
   question: ${JSON.stringify(longestTexts.question)},
   answer: ${JSON.stringify(longestTexts.answer)},
   feedback: ${JSON.stringify(longestTexts.feedback)},
   maxLength: ${longestTexts.maxLength}
+} as const;
+
+// Самые длинные тексты ТОЛЬКО из miniQuizzes (для KeyQuestionModal)
+export const LONGEST_TEXTS_MINI_QUIZZES = {
+  question: ${JSON.stringify(longestTextsMiniQuizzes.question)},
+  answer: ${JSON.stringify(longestTextsMiniQuizzes.answer)},
+  feedback: ${JSON.stringify(longestTextsMiniQuizzes.feedback)},
+  maxLength: ${longestTextsMiniQuizzes.maxLength}
+} as const;
+
+// Самые длинные тексты для CoinBubbleQuiz (бабблы монеток)
+// Найденный максимум: ~46-50 символов (Level 3)
+export const LONGEST_TEXTS_COIN_QUIZZES = {
+  text: "Газовая плита требует выключения после готовки!!!", // ~50 chars
+  maxLength: 50
 } as const;
 `;
 

@@ -24,7 +24,7 @@ export class ItemCollisionHandler {
      * Обрабатывает столкновение с сердечком (восстановление здоровья)
      */
     handleHeart(heart: Phaser.Physics.Arcade.Sprite): void {
-        if (!this.scene['sys'].settings.active) return;
+        if (!this.scene['sys']?.settings?.active) return;
 
         const healthSystem = (this.scene as any).healthSystem;
         const audioManager = (this.scene as any).audioManager;
@@ -60,7 +60,7 @@ export class ItemCollisionHandler {
      * Этот метод очень большой (~150 строк) и управляет всем процессом викторины
      */
     async handleKey(key: Phaser.Physics.Arcade.Sprite): Promise<boolean> {
-        if (!this.scene['sys'].settings.active || !key || !key.active) return false;
+        if (!this.scene['sys']?.settings?.active || !key || !key.active) return false;
 
         const collisionSystem = (this.scene as any).collisionSystem;
         const gameState = (this.scene as any).gameState;

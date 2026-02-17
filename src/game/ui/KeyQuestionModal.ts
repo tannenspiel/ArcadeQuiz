@@ -20,19 +20,28 @@ import {
   KEY_FEEDBACK_COLOR,
   MIN_FONT_SIZE_TEXT,
   MIN_FONT_SIZE_BUTTON,
-  MAX_FONT_SIZE
+  MAX_FONT_SIZE,
+  BUTTON_PADDING_BASE_X,
+  BUTTON_PADDING_BASE_Y,
+  KEY_QUESTION_MODAL_MAX_FONT_SIZE
 } from '../../constants/textStyles';
+import { LONGEST_TEXTS_MINI_QUIZZES } from '../../constants/textLengths';
 import { calculateModalSize } from './ModalSizeCalculator';
 import {
   calculateBaseFontSize,
   calculateButtonFontSize,
+  calculateTieredFontSize,
+  calculateTieredFontSizeSimple,
+  CHAR_WIDTH_RATIO_MONO,
+  CHAR_WIDTH_RATIO_SANS,
   calculateUnifiedBaseFontSize,
   getButtonPadding,
-  getFontSizeMultiplier
+  getModalFontMultiplier,
+  MAX_OPTIMAL_FONT_SIZE
 } from '../utils/FontSizeCalculator';
-import { QuizManager } from '../systems/QuizManager';
 import { NineSliceBackground } from './NineSliceBackground';
 import { logger } from '../../utils/Logger';
+import { DEBUG_MODAL_BOUNDS } from '../../config/debugConfig';
 
 export interface KeyQuestionModalConfig {
   question: ParsedQuestion;
@@ -131,9 +140,12 @@ export class KeyQuestionModal {
     // Это гарантирует, что getBoundingClientRect() вернет правильные размеры canvas
     // ✅ Откладываем создание UI на 1 кадр, чтобы Phaser.Scale.FIT завершил масштабирование
     // Это гарантирует, что getBoundingClientRect() вернет правильные размеры canvas
-    this.initTimer = scene.time.delayedCall(1, () => {
+    // ✅ Откладываем создание UI на 1 кадр, чтобы Phaser.Scale.FIT завершил масштабирование
+    // Это гарантирует, что getBoundingClientRect() вернет правильные размеры canvas
+    this.initTimer = scene.time.delayedCall(1, async () => {
       try {
-        this.createUI();
+        // ✅ Создаем UI асинхронно (загружаем данные для расчета шрифта)
+        await this.createUI();
         this.isInitialized = true; // ✅ UI успешно создан, объект полностью инициализирован
         logger.log('MODAL_UI', 'KeyQuestionModal: UI created successfully');
       } catch (error) {
@@ -164,7 +176,7 @@ export class KeyQuestionModal {
     this.isInitialized = true;
   }
 
-  private createUI(): void {
+  private async createUI(): Promise<void> {
     // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
     // Используем devicePixelRatio для высоких DPI экранов, но ограничиваем до 2 для производительности
     // ✅ Устанавливаем разрешение = 1 для пиксельного шрифта
@@ -247,7 +259,9 @@ export class KeyQuestionModal {
     };
     console.log('📏 Modal Sizes:', sizes);
     // Also store globally for debugging
-    (window as any).modalDebugSizes = sizes;
+    if (DEBUG_MODAL_BOUNDS) {
+      (window as any).modalDebugSizes = sizes;
+    }
 
     // Фон (НЕ интерактивный, чтобы не блокировать клики по кнопкам)
     if (AB_TESTING.USE_NINE_SLICE_MODAL) {
@@ -309,10 +323,11 @@ export class KeyQuestionModal {
     const feedbackY = blockPositions[3]; // Фидбэк
 
     // ✅ ДЕБАЖНАЯ ВИЗУАЛИЗАЦИЯ: Отрисовка границ блоков
-    const DEBUG_SHOW_BLOCK_BOUNDS = false; // Отключено после тестирования
-    if (DEBUG_SHOW_BLOCK_BOUNDS) {
+    // Управляется через .env: VITE_DEBUG_MODAL_BOUNDS=true
+    if (DEBUG_MODAL_BOUNDS) {
       this.debugGraphics = this.scene.add.graphics();
-      this.debugGraphics.setDepth(2999).setScrollFactor(0); // Поверх элементов, привязка к UI
+      // ✅ ВАЖНО: depth 3000 (НИЖЕ UI), disableInteractive() (НЕ БЛОКИРУЕТ!)
+      this.debugGraphics.setDepth(3000).setScrollFactor(0).disableInteractive();
 
       // ✅ Используем modalWidth вместо contentAreaWidth (ширина всего модального окна)
       // Padding должен быть учтен при позиционировании элементов внутри
@@ -372,129 +387,107 @@ export class KeyQuestionModal {
     // ✅ РАСЧЕТ ЕДИНОГО БАЗОВОГО РАЗМЕРА ШРИФТА
     // Используем единый базовый размер для всех модальных окон
     const currentLevel = this.scene.data.get('currentLevel') as number | undefined || 1; // По умолчанию уровень 1
-    const baseFontSize = calculateUnifiedBaseFontSize(this.scene, currentLevel);
+    // ✅ DATA-DRIVEN SIZING: Получаем самые длинные тексты из JSON текущего уровня
+    // Это позволяет использовать крупный шрифт, если в JSON только короткие тексты (тесты)
+    const quizManager = this.scene.data.get('quizManager');
 
-    // Получаем quizManager для получения самых длинных текстов (для расчета размеров элементов)
-    const quizManager = this.scene.data.get('quizManager') as QuizManager | undefined;
-    let longestTexts;
-    if (quizManager) {
-      longestTexts = quizManager.getLongestTexts(currentLevel);
+    // Default fallback - change to SHORT to indicate error visually (Large Font)
+    let longestTexts = {
+      question: 'Q?',
+      answer: 'A',
+      feedback: 'OK'
+    };
+
+    if (quizManager && typeof quizManager.getLongestMiniQuizTexts === 'function') {
+      try {
+        // Асинхронно сканируем JSON
+        longestTexts = await quizManager.getLongestMiniQuizTexts(currentLevel);
+        console.log('🔑 KeyQuestionModal: Got longest texts', longestTexts);
+      } catch (e) {
+        console.error('Failed to get longest mini quiz texts', e);
+      }
     } else {
-      // Fallback: используем дефолтные значения
-      logger.warn('MODAL_SIZE', 'KeyQuestionModal: QuizManager not found, using default longest texts');
-      longestTexts = {
-        question: 'Какая планета известна как \'Красная планета\'?',
-        answer: 'Кошка говорит мяу! Она маукает, мяунькает! Намяукивает!',
-        feedback: 'Правильно! Кошка говорит \'Мяу\'! Ты прям ваще красава! Угадал про кошку!',
-        maxLength: 76
-      };
+      console.warn('🔑 KeyQuestionModal: QuizManager not found, using short fallback');
     }
 
-    console.log('📏 KeyQuestionModal baseFontSize:', `${baseFontSize.toFixed(2)}px`);
+    // ✅ FIX: Recalculate baseFontSize with fetched data!
+    // Previously it was calculated BEFORE fetching data, using hardcoded defaults in the utility.
+    const baseFontSize = calculateUnifiedBaseFontSize(this.scene, currentLevel, longestTexts);
 
-    // ✅ ВАЖНО: Рассчитываем размеры для всех элементов, но используем МИНИМАЛЬНЫЙ из них
-    // Это гарантирует, что все элементы будут иметь одинаковый размер шрифта
-    const questionFontSizeRaw = calculateBaseFontSize(
-      this.scene,
-      contentAreaWidth,
-      questionAreaHeight,
+    console.log('📏 KeyQuestionModal baseFontSize (Data-Driven):', `${baseFontSize.toFixed(2)}px`);
+    console.log('📏 KeyQuestionModal Longest Texts (Data-Driven):', `question=${longestTexts.question.length} chars, answer=${longestTexts.answer.length} chars, feedback=${longestTexts.feedback.length} chars`);
+
+    // ✅ ЕДИНЫЙ PADDING ДЛЯ ВСЕХ 5 БЛОКОВ (вопрос, фидбэк, 3 кнопки)
+    // Базовые отступы в пикселях исходной графики масштабируются через BASE_SCALE
+    // paddingX = BUTTON_PADDING_BASE_X * BASE_SCALE = 3 * 4 = 12px
+    // paddingY = BUTTON_PADDING_BASE_Y * BASE_SCALE = 2 * 4 = 8px
+    const blockPadding = getButtonPadding(contentAreaWidth, blockHeight);
+    const blockAvailableWidth = blockPadding.availableWidth;   // contentAreaWidth - (paddingX * 2)
+    const blockAvailableHeight = blockPadding.availableHeight; // blockHeight - (paddingY * 2)
+
+    console.log('📏 KeyQuestionModal Block Padding:', `width=${contentAreaWidth.toFixed(0)}→${blockAvailableWidth.toFixed(0)}, height=${blockHeight.toFixed(1)}→${blockAvailableHeight.toFixed(1)}, paddingX=${blockPadding.paddingX.toFixed(1)}, paddingY=${blockPadding.paddingY.toFixed(1)}`);
+
+    // ✅ УРОВНЕВЫЙ РАСЧЁТ ШРИФТОВ (Tiered Font Logic: A/B/C/D)
+    // Размеры рассчитываются динамически на основе доступных размеров поля
+
+    // ✅ FIX: Пересчитываем в НАТИВНЫЕ координаты (компенсация setScale(invZoom))
+    // Текст рисуется с fontSize (нативный px), затем сжимается setScale(0.625).
+    // Поэтому расчёт charsPerLine должен использовать нативную ширину, а не виртуальную.
+    const nativeAvailableWidth = blockAvailableWidth / invZoom;
+    const nativeAvailableHeight = blockAvailableHeight / invZoom;
+
+    console.log('📏 KeyQuestionModal Native Dimensions:', `virtual: ${blockAvailableWidth.toFixed(0)}×${blockAvailableHeight.toFixed(1)} → native: ${nativeAvailableWidth.toFixed(0)}×${nativeAvailableHeight.toFixed(1)} (invZoom=${invZoom.toFixed(3)})`);
+
+    // ✅ НОВАЯ СИСТЕМА ABCDEF: чистая символьная арифметика (нативные координаты)
+    // Вопрос (sans-serif)
+    const questionFontSize = calculateTieredFontSizeSimple(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
       longestTexts.question,
-      baseFontSize,
-      3
+      CHAR_WIDTH_RATIO_SANS,
+      KEY_QUESTION_MODAL_MAX_FONT_SIZE
     );
-    const questionFits = Math.abs(questionFontSizeRaw - baseFontSize) < 0.01; // Влез ли базовый (с учетом округления)
-    const questionClamped = questionFontSizeRaw === MIN_FONT_SIZE_TEXT || questionFontSizeRaw === MAX_FONT_SIZE; // Был ли применен clamp
-    console.log('📏 KeyQuestionModal Question:', `base=${baseFontSize.toFixed(2)}px, final=${questionFontSizeRaw.toFixed(2)}px`);
 
-    const feedbackFontSizeRaw = calculateBaseFontSize(
-      this.scene,
-      contentAreaWidth,
-      feedbackAreaHeight,
+    // Фидбэк (monospace, bold italic) — используем CHAR_WIDTH_RATIO_MONO
+    const feedbackFontSize = calculateTieredFontSizeSimple(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
       longestTexts.feedback,
-      baseFontSize,
-      3
+      CHAR_WIDTH_RATIO_MONO,
+      KEY_QUESTION_MODAL_MAX_FONT_SIZE
     );
-    const feedbackFits = Math.abs(feedbackFontSizeRaw - baseFontSize) < 0.01;
-    const feedbackClamped = feedbackFontSizeRaw === MIN_FONT_SIZE_TEXT || feedbackFontSizeRaw === MAX_FONT_SIZE;
-    console.log('📏 KeyQuestionModal Feedback:', `base=${baseFontSize.toFixed(2)}px, final=${feedbackFontSizeRaw.toFixed(2)}px`);
 
-    // ✅ Находим минимальный размер, который влезает во все элементы
-    // Это гарантирует единый размер для всех текстов
-    let unifiedFontSize = Math.min(questionFontSizeRaw, feedbackFontSizeRaw);
-    console.log('📏 KeyQuestionModal unifiedFontSize:', `${unifiedFontSize.toFixed(2)}px`);
+    // Кнопки ответов (sans-serif)
+    const buttonFontSize = calculateTieredFontSizeSimple(
+      nativeAvailableWidth,
+      nativeAvailableHeight,
+      longestTexts.answer,
+      CHAR_WIDTH_RATIO_SANS,
+      KEY_QUESTION_MODAL_MAX_FONT_SIZE
+    );
 
-    // ✅ КНОПКИ ОТВЕТОВ: используем blockHeight (одинаковая высота для всех блоков)
+    // ✅ КНОПКИ ОТВЕТОВ — размеры
     const buttonCount = this.parsedQuestion.allAnswers.length;
     const buttonWidth = contentAreaWidth;
-    const buttonHeight = blockHeight; // ✅ Используем высоту блока (одинаковую для всех элементов)
+    const buttonHeight = blockHeight;
 
-    // ✅ АДАПТИВНЫЕ ОТСТУПЫ: используем getButtonPadding для вычисления отступов
-    // Базовые отступы в пикселях исходной графики масштабируются через BASE_SCALE
-    const buttonPadding = getButtonPadding(buttonWidth, buttonHeight);
-    const buttonAvailableWidth = buttonPadding.availableWidth;
-    const buttonAvailableHeight = buttonPadding.availableHeight;
+    logger.log('MODAL_SIZE', `📏 KeyQuestionModal TIERED: question=${questionFontSize.toFixed(1)}px, feedback=${feedbackFontSize.toFixed(1)}px, button=${buttonFontSize.toFixed(1)}px`);
 
-    // ✅ Рассчитываем размер шрифта для кнопок используя calculateButtonFontSize
-    // Передаём ДОСТУПНУЮ ширину/высоту (с отступами)!
-    const buttonFontSizeRaw = calculateButtonFontSize(
-      this.scene,
-      buttonAvailableWidth,  // ✅ С отступами!
-      buttonAvailableHeight, // ✅ С отступами!
-      longestTexts.answer,
-      40 // defaultFontSize = MAX_OPTIMAL_FONT_SIZE
-    );
-
-    console.log('📏 KeyQuestionModal Button:', `button=${buttonWidth}x${buttonHeight}, paddingX=${buttonPadding.paddingX.toFixed(1)}, paddingY=${buttonPadding.paddingY.toFixed(1)}, available=${buttonAvailableWidth.toFixed(1)}x${buttonAvailableHeight.toFixed(1)}, fontSize=${buttonFontSizeRaw.toFixed(2)}px`);
-
-    // ✅ ВАЖНО: Логика выбора unifiedFontSize для всех текстовых элементов (вопрос, фидбэк, кнопки)
-    const baseFitsOverall = Math.abs(unifiedFontSize - baseFontSize) < 0.01;
-    const unifiedClamped = unifiedFontSize === MIN_FONT_SIZE_TEXT || unifiedFontSize === MAX_FONT_SIZE;
-    logger.log('MODAL_SIZE', `KeyQuestionModal: Final unified (all elements): base=${baseFontSize.toFixed(2)}px, final=${unifiedFontSize.toFixed(2)}px, baseFits=${baseFitsOverall}, clamped=${unifiedClamped}`);
-
-    // Применяем мультипликаторы (для тонкой настройки)
-    const questionMultiplier = KEY_QUESTION_FONT_SIZE_MULTIPLIER;
-    const feedbackMultiplier = KEY_FEEDBACK_FONT_SIZE_MULTIPLIER;
-
-    // ✅ АДАПТИВНЫЙ МНОЖИТЕЛЬ: используем getFontSizeMultiplier вместо фиксированного 1.3
-    const screenAR = canvasWidth / canvasHeight;
-    const adaptiveMultiplier = getFontSizeMultiplier(screenAR);
-    const zoom = this.scene.cameras.main.zoom; // 1.6
-    const commonFontSize = Math.max(buttonFontSizeRaw, unifiedFontSize) * adaptiveMultiplier;
-
-    // Размеры шрифтов теперь кратны общему размеру
-    const questionFontSize = commonFontSize; // Такой же, как кнопки
-    const feedbackFontSize = commonFontSize; // Такой же, как кнопки
-    const buttonFontSize = commonFontSize;   // Единый размер
-
-    // ✅ Подробный лог расчёта fontSize
-    logger.log('MODAL_SIZE', `📏 KeyQuestionModal: buttonRaw=${buttonFontSizeRaw.toFixed(1)}px, unified=${unifiedFontSize.toFixed(1)}px, multiplier=${adaptiveMultiplier.toFixed(2)}, final=${commonFontSize.toFixed(1)}px`);
-
-    console.log('📏 KeyQuestionModal FINAL SIZES:', `question=${questionFontSize.toFixed(2)}, feedback=${feedbackFontSize.toFixed(2)}, button=${buttonFontSize.toFixed(2)}`);
-
-    // Текст вопроса - используем contentAreaWidth для wordWrap
-    // ✅ ОГРАНИЧЕНИЕ МАКСИМАЛЬНОЙ ВЫСОТЫ ДЛЯ ТЕКСТА
-    const questionMaxHeight = questionAreaHeight; // Используем высоту области вопроса
-
-    // ✅ ЗАЩИТА ОТ ПЕРЕСЕЧЕНИЯ С КРЕСТИКОМ
-    // Рассчитываем размер крестика заранее, чтобы уменьшить доступную ширину для текста
+    // ✅ Размер крестика закрытия
     const closeTextureSize = 14;
     const closeScale = BASE_SCALE;
-    const closeSize = closeTextureSize * closeScale; // 64px
-    const closeButtonMargin = closeSize + 16; // Размер крестика + дополнительный отступ
+    const closeSize = closeTextureSize * closeScale;
 
-    // ✅ Уменьшаем ширину wordWrap справа, чтобы текст не пересекался с крестиком
-    // UPD: Теперь используем полную ширину, так как крестик в углу и не должен сужать весь текст
-    // ✅ Компенсация setScale(invZoom): делим на invZoom для правильного переноса строк
-    const questionWordWrapWidth = contentAreaWidth / invZoom;
-    logger.log('MODAL_SIZE', `KeyQuestionModal: wordWrap width set to ${questionWordWrapWidth} (contentAreaWidth / invZoom)`);
+    // ✅ wordWrap для текста вопроса (компенсация setScale(invZoom))
+    const questionWordWrapWidth = blockAvailableWidth / invZoom;
 
-    // ✅ Округляем координаты до целых пикселей для предотвращения размытия
+    // ✅ Координаты текста вопроса (округлены до целых пикселей)
     const questionTextX = Math.round(modalX);
     const questionTextY = Math.round(questionY);
 
     this.questionText = this.scene.add.text(
-      questionTextX, // ✅ Округлено до целого пикселя
-      questionTextY, // ✅ Округлено до целого пикселя
+      questionTextX,
+      questionTextY,
       this.parsedQuestion.questionText,
       {
         fontSize: `${Math.round(questionFontSize)}px`,
@@ -502,61 +495,33 @@ export class KeyQuestionModal {
         fontStyle: KEY_QUESTION_FONT_STYLE,
         color: KEY_QUESTION_COLOR,
         align: 'center',
-        wordWrap: { width: questionWordWrapWidth } // ✅ Учтён отступ от крестика
+        wordWrap: { width: questionWordWrapWidth }
       }
     ).setOrigin(0.5).setDepth(2001).setScrollFactor(0);
 
-    // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
     this.questionText.setResolution(textResolution);
-
-    // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
     this.questionText.setScale(invZoom);
 
-    // ✅ Дополнительная защита от переполнения для вопроса
-    if (this.questionText && typeof this.questionText.height === 'number' && typeof questionFontSize === 'number' && typeof questionMaxHeight === 'number') {
-      logger.log('MODAL_SIZE', `KeyQuestionModal: Question text created: fontSize=${questionFontSize.toFixed(2)}, height=${this.questionText.height.toFixed(1)}, maxHeight=${questionMaxHeight.toFixed(1)}`);
-      if (this.questionText.height > questionMaxHeight) {
-        const scaleFactor = questionMaxHeight / this.questionText.height;
-        const adjustedFontSize = Math.max(MIN_FONT_SIZE_TEXT, questionFontSize * scaleFactor);
-        this.questionText.setFontSize(`${adjustedFontSize}px`);
-        logger.warn('MODAL_SIZE', `KeyQuestionModal: Question text too large, reduced from ${questionFontSize.toFixed(2)} to ${adjustedFontSize.toFixed(2)}`);
-      }
-    }
-
     // ✅ Поле feedbacks (над кнопками) - показывается только если включено A/B тестирование
-    // ✅ Фидбэк использует рассчитанный размер с проверкой влезания
-    if (AB_TESTING.ENABLE_FEEDBACKS || AB_TESTING.ENABLE_WRONG_FEEDBACKS) {
-      // ✅ Округляем координаты до целых пикселей для предотвращения размытия
-      const feedbackTextX = Math.round(modalX);
-      const feedbackTextY = Math.round(feedbackY);
+    const feedbackTextX = Math.round(modalX);
+    const feedbackTextY = Math.round(feedbackY);
 
+    if (AB_TESTING.ENABLE_FEEDBACKS || AB_TESTING.ENABLE_WRONG_FEEDBACKS) {
       this.feedbackText = this.scene.add.text(
-        feedbackTextX, // ✅ Округлено до целого пикселя
-        feedbackTextY, // ✅ Округлено до целого пикселя
+        feedbackTextX,
+        feedbackTextY,
         '',
         {
-          fontSize: `${Math.round(feedbackFontSize)}px`, // ✅ Размер равен размеру вопроса
-          fontFamily: 'monospace', // ✅ Моноширинный шрифт для четкости
-          fontStyle: KEY_FEEDBACK_FONT_STYLE, // ✅ Используем константу
-          color: KEY_FEEDBACK_COLOR, // ✅ Используем константу
-          wordWrap: { width: contentAreaWidth / invZoom }, // ✅ Компенсация setScale(invZoom)
+          fontSize: `${Math.round(feedbackFontSize)}px`,
+          fontFamily: 'monospace',
+          fontStyle: KEY_FEEDBACK_FONT_STYLE,
+          color: KEY_FEEDBACK_COLOR,
+          wordWrap: { width: blockAvailableWidth / invZoom },
           align: 'center'
         }).setOrigin(0.5).setDepth(2001).setScrollFactor(0).setVisible(false);
 
-      // ✅ Устанавливаем разрешение для четкости текста (предотвращает размытие)
       this.feedbackText.setResolution(textResolution);
-
-      // ✅ ВАЖНО: Применяем setScale(invZoom) для четкости текста при zoom камеры (invZoom объявлен в начале createUI)
       this.feedbackText.setScale(invZoom);
-
-      // ✅ Дополнительная защита от переполнения для фидбэка
-      logger.log('MODAL_SIZE', `KeyQuestionModal: Feedback text created: fontSize=${feedbackFontSize.toFixed(2)}, height=${this.feedbackText.height.toFixed(1)}, maxHeight=${feedbackAreaHeight.toFixed(1)}`);
-      if (this.feedbackText.height > feedbackAreaHeight) {
-        const scaleFactor = feedbackAreaHeight / this.feedbackText.height;
-        const adjustedFontSize = Math.max(MIN_FONT_SIZE_TEXT, feedbackFontSize * scaleFactor);
-        this.feedbackText.setFontSize(`${adjustedFontSize}px`);
-        logger.warn('MODAL_SIZE', `KeyQuestionModal: Feedback text too large, reduced from ${feedbackFontSize.toFixed(2)} to ${adjustedFontSize.toFixed(2)}`);
-      }
     }
 
     // ✅ Используем allAnswers из ParsedQuestion
@@ -592,8 +557,8 @@ export class KeyQuestionModal {
         fontSize: buttonFontSize,
         // ✅ Компенсация setScale для wordWrap: после setScale(0.625) wordPress сжимается
         // Поэтому увеличиваем ширину в 1/invZoom = 1.6 раза
-        // ✅ ИСПРАВЛЕНИЕ: используем buttonAvailableWidth вместо buttonWidth для учёта отступов
-        wordWrap: { width: buttonAvailableWidth / invZoom }, // Компенсация setScale + отступы
+        // ✅ ИСПРАВЛЕНИЕ: используем blockAvailableWidth (единый padding для всех 5 блоков)
+        wordWrap: { width: blockAvailableWidth / invZoom }, // Компенсация setScale + padding
         align: 'center', // ✅ Центрирование текста
         onClick: () => this.handleAnswer(index, isCorrect)
       });
@@ -625,6 +590,95 @@ export class KeyQuestionModal {
       closeButtonY,
       'ui_dialog_close'
     ).setOrigin(0.5).setDepth(2001).setScrollFactor(0).setInteractive({ useHandCursor: true });
+
+    // ✅ ОТЛАДОЧНЫЕ ПРЯМОУГОЛЬНИКИ ДЛЯ ТЕКСТОВЫХ ОБЛАСТЕЙ
+    // Показывают WordWrap boundaries — ГДЕ ТЕКСТ МОЖЕТ БЫТЬ (максимальные размеры)
+    // ⚠️ ВАЖНО: Размеры в координатах экрана (НЕ делятся на invZoom!)
+    // При создании текста wordWrap делится на invZoom для компенсации setScale(invZoom)
+    // Но для отрисовки рамок используем исходные координаты (setScale НЕ применяется к graphics)
+    if (DEBUG_MODAL_BOUNDS) {
+      const textColor = 0x000000; // ✅ Чёрный для wordWrap boundaries
+      const textAlpha = 1.0; // ✅ Полностью непрозрачный
+
+      // @ts-ignore — questionWord и другие переменные не найдены в этой области
+      // 1. Вопрос - wordWrap boundaries
+      // ⚠️ ВАЖНО: Используем исходные размеры (с учётом padding для всех блоков)
+      const questionWordWrapWidth = blockAvailableWidth; // ✅ С padding (НЕ делится на invZoom)
+      const questionWordWrapHeight = blockAvailableHeight; // ✅ С padding
+
+      const questionTextLeft = questionTextX - questionWordWrapWidth / 2;
+      const questionTextTop = questionTextY - questionWordWrapHeight / 2;
+
+      if (this.debugGraphics) {
+        this.debugGraphics.lineStyle(1, textColor, textAlpha);
+        this.debugGraphics.strokeRect(
+          questionTextLeft,
+          questionTextTop,
+          questionWordWrapWidth,
+          questionWordWrapHeight
+        );
+      }
+
+      // 2. Фидбэк (feedbackText) - если есть
+      if (this.feedbackText) {
+        const feedbackWordWrapWidth = blockAvailableWidth; // ✅ С padding
+        const feedbackWordWrapHeight = blockAvailableHeight; // ✅ С padding
+
+        const feedbackTextLeft = feedbackTextX - feedbackWordWrapWidth / 2;
+        const feedbackTextTop = feedbackTextY - feedbackWordWrapHeight / 2;
+
+        if (this.debugGraphics) {
+          this.debugGraphics.lineStyle(1, textColor, textAlpha);
+          this.debugGraphics.strokeRect(
+            feedbackTextLeft,
+            feedbackTextTop,
+            feedbackWordWrapWidth,
+            feedbackWordWrapHeight
+          );
+        }
+      }
+
+      // 3. Кнопки - wordWrap boundaries
+      for (let i = 0; i < this.answerButtons.length; i++) {
+        const button = this.answerButtons[i];
+        if (!button) continue;
+
+        const buttonText = button['text'] as Phaser.GameObjects.Text;
+        if (!buttonText) continue;
+
+        // ✅ ИСПРАВЛЕНИЕ: Текст в Button БЕЗ wordWrap — измеряем displayWidth/displayHeight
+        // Для других блоков wordWrap указан явно, для кнопок — нужно измерять фактический размер
+        const buttonTextDisplayWidth = buttonText.displayWidth / invZoom; // ✅ Фактический размер текста
+        const buttonTextDisplayHeight = buttonText.displayHeight / invZoom; // ✅ Фактический размер текста
+        const buttonTextWordWrapWidth = blockAvailableWidth; // ✅ С padding (как у вопроса/фидбэка!)
+        const buttonTextWordWrapHeight = blockAvailableHeight; // ✅ С padding (как у вопроса/фидбэка!)
+
+        // Позиция Y кнопки из blockPositions (инвертируем как при создании)
+        const buttonCount = this.parsedQuestion.allAnswers.length;
+        const buttonIndex = buttonCount - 1 - i;
+        const buttonTextY = blockPositions[buttonIndex];
+        if (buttonTextY === undefined) continue;
+
+        // Обертываем в блок для правильной работы TypeScript flow analysis
+        {
+          const buttonTextLeft = modalX - buttonTextWordWrapWidth / 2;
+          const buttonTextTop = buttonTextY - buttonTextWordWrapHeight / 2;
+
+          // @ts-ignore - textColor и textAlpha определены выше в DEBUG_SHOW_BLOCK_BOUNDS блоке
+          this.debugGraphics.lineStyle(1, textColor as any, textAlpha as any);
+          // @ts-ignore
+          this.debugGraphics.strokeRect(
+            buttonTextLeft as any,
+            buttonTextTop as any,
+            buttonTextWordWrapWidth,
+            buttonTextWordWrapHeight
+          );
+        }
+      }
+
+      logger.log('MODAL_SIZE', `🎨 WordWrap boundaries: ALL 5 BLOCKS=${blockAvailableWidth.toFixed(1)}x${blockAvailableHeight.toFixed(1)} (question, feedback, 3 buttons - same padding)`);
+
+    }
 
     // ✅ Масштабируем как пиксельную графику (BASE_SCALE = 4.0)
     this.closeButton.setScale(closeScale);
@@ -722,6 +776,15 @@ export class KeyQuestionModal {
     // ❌ REMOVED: this.isAnswered = true; (Moved inside isCorrect check)
     // ❌ REMOVED: this.buttonsEnabled = false; (Not needed globally, wrong answer keeps buttons enabled)
 
+    // ✅ 1. Если ответ уже был дан (правильный), разрешаем клик ТОЛЬКО по правильной кнопке (для подтверждения)
+    if (this.isAnswered) {
+      if (!isCorrect) {
+        logger.log('MODAL_UI', 'KeyQuestionModal: Ignoring click on wrong button after correct answer');
+        return;
+      }
+      // Если isCorrect - проходим дальше во второй блок (подтверждение)
+    }
+
     if (isCorrect) {
       // ✅ ПРАВИЛЬНЫЙ ОТВЕТ (Original Logic)
       if (!this.isAnswered) {
@@ -744,6 +807,13 @@ export class KeyQuestionModal {
         }
 
         button.setState(ButtonState.BLINKING);
+
+        // ✅ НОВОЕ: Отключаем все остальные кнопки, чтобы нельзя было нажать ошибку
+        this.answerButtons.forEach((btn, index) => {
+          if (index !== buttonIndex) {
+            btn.setState(ButtonState.DISABLED);
+          }
+        });
 
       } else {
         // Второй клик (подтверждение) - закрытие

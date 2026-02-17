@@ -10,7 +10,9 @@ export default {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
-    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': 'jest-transform-stub'
+    '\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$': 'jest-transform-stub',
+    // ✅ ФИКС: FontSizeCalculator как единый модуль (без суффикса _1)
+    '^game/(utils|systems|ui|entities|scenes|constants)$': '<rootDir>/src/$1'
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],
   globals: {
@@ -25,7 +27,7 @@ export default {
       VITE_USE_QUESTION_BUBBLE: 'true',
       VITE_SOUND_ENABLED: 'true',
       VITE_SOUND_VOLUME: '0.5',
-      VITE_DEBUG_UI_ENABLED: 'false',
+      VITE_DEBUG_UI_ENABLED: 'false'
     }
   },
   collectCoverageFrom: [
