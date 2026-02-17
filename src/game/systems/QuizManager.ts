@@ -230,26 +230,17 @@ export class QuizManager {
         });
       }
 
-      // 2. Добавляем текстовый глобальный вопрос (для обратной совместимости)
-      if (levelData.globalQuestion) {
-        const parsed = this.parseQuestion(levelData.globalQuestion);
-        if ((levelData.globalQuestion as any)._force === true) {
-          forcedQuestions.push(parsed);
-          logger.log('QUIZ', '🎯 Found forced question (globalQuestion):', parsed.questionText);
-        } else {
-          globalQuestions.push(parsed);
-        }
-      }
-
-      // 3. Добавляем глобальный вопрос с изображением (если есть, для обратной совместимости)
-      if (levelData.globalQuestionWithImage) {
-        const parsed = this.parseQuestion(levelData.globalQuestionWithImage);
-        if ((levelData.globalQuestionWithImage as any)._force === true) {
-          forcedQuestions.push(parsed);
-          logger.log('QUIZ', '🎯 Found forced question (globalQuestionWithImage):', parsed.questionText);
-        } else {
-          globalQuestions.push(parsed);
-        }
+      // 2. Добавляем вопросы с изображениями из массива globalQuizzesWithImage
+      if (levelData.globalQuizzesWithImage && levelData.globalQuizzesWithImage.length > 0) {
+        levelData.globalQuizzesWithImage.forEach(question => {
+          const parsed = this.parseQuestion(question);
+          if ((question as any)._force === true) {
+            forcedQuestions.push(parsed);
+            logger.log('QUIZ', '🎯 Found forced question (globalQuizzesWithImage):', parsed.questionText);
+          } else {
+            globalQuestions.push(parsed);
+          }
+        });
       }
 
       // ✅ Случайно выбираем один из глобальных вопросов
@@ -449,6 +440,26 @@ export class QuizManager {
   }
 
   /**
+   * ✅ НОВОЕ: Получить сообщение при проигрыше (Game Over)
+   */
+  public async getGameOverMessage(levelNumber: number): Promise<string> {
+    try {
+      const levelData = await this.loadLevelQuestions(levelNumber);
+      const messages = levelData.levelWinMessage.gameover;
+
+      if (messages && messages.length > 0) {
+        return messages[Math.floor(Math.random() * messages.length)];
+      }
+
+      logger.warn('QUIZ', `No gameover messages found for level ${levelNumber}, using default.`);
+      return "Game Over!";
+    } catch (error) {
+      logger.error('QUIZ', `Failed to load gameover message for level ${levelNumber}`, error);
+      return "Game Over!";
+    }
+  }
+
+  /**
    * Получить победные сообщения для уровня (устаревший метод, оставлен для совместимости)
    */
   public async getWinMessages(levelNumber: number, livesRemaining: number): Promise<string> {
@@ -522,6 +533,120 @@ export class QuizManager {
 
     logger.log('QUIZ', `Analyzed level ${levelNumber} for longest texts`);
     return longestTexts;
+  }
+
+  /**
+   * ✅ НОВОЕ: Загрузить вопросы монеток для уровня (с кешированием resource loader)
+   */
+  public async loadCoinQuestions(levelNumber: number): Promise<CoinQuizData> {
+    // AssetLoader кеширует по URL, так что повторная загрузка быстрая
+    return this.assetLoader.loadJSON<CoinQuizData>(
+      `questions/level${levelNumber}.coin-quiz.json`
+    );
+  }
+
+  /**
+   * ✅ НОВОЕ (Data-Driven Sizing): Найти самое длинное утверждение в JSON монеток уровня
+   * Используется для расчета размера шрифта в CoinBubbleQuiz.
+   */
+  public async getLongestCoinStatement(levelNumber: number): Promise<string> {
+    try {
+      const data = await this.loadCoinQuestions(levelNumber);
+      let longest = '';
+
+      // Сканируем true statements
+      if (data.true) {
+        for (const item of data.true) {
+          if (item.text.length > longest.length) longest = item.text;
+        }
+      }
+
+      // Сканируем false statements
+      if (data.false) {
+        for (const item of data.false) {
+          if (item.text.length > longest.length) longest = item.text;
+        }
+      }
+
+      // Fallback
+      if (longest.length === 0) {
+        logger.warn('QUIZ', `Coin quiz scan found no text, using short fallback`);
+        return 'Test'; // ✅ CHANGE: Short fallback to ensure large font on error
+      }
+
+      logger.log('QUIZ', `📏 Data-Driven Coin Size: Level ${levelNumber} max length = ${longest.length} chars ("${longest.substring(0, 20)}...")`);
+      return longest;
+    } catch (e) {
+      logger.error('QUIZ', `Failed to scan coin questions for level ${levelNumber}`, e);
+      return 'Error'; // ✅ CHANGE: Short fallback
+    }
+  }
+
+  /**
+   * ✅ НОВОЕ (Data-Driven Sizing): Найти самые длинные тексты в miniQuizzes уровня
+   * Используется для KeyQuestionModal.
+   */
+  public async getLongestMiniQuizTexts(levelNumber: number): Promise<{ question: string, answer: string, feedback: string }> {
+    try {
+      // Используем loadLevelQuestions, который уже имеет кеш
+      const data = await this.loadLevelQuestions(levelNumber);
+
+      let maxQuestion = '';
+      let maxAnswer = '';
+      let maxFeedback = '';
+
+      if (data.miniQuizzes) {
+        for (const q of data.miniQuizzes) {
+          // Вопрос
+          const qText = 'question' in q ? q.question : q.question_Sign.text;
+          if (qText.length > maxQuestion.length) maxQuestion = qText;
+
+          // Ответы (правильный)
+          if (q.correctAnswer.length > maxAnswer.length) maxAnswer = q.correctAnswer;
+          // Ответы (неправильные)
+          if (q.wrongAnswers) {
+            for (const ans of q.wrongAnswers) {
+              if (ans.length > maxAnswer.length) maxAnswer = ans;
+            }
+          }
+          // ✅ FIX: wrongFeedbacks отображаются НА КНОПКАХ, поэтому входят в answer
+          if (q.wrongFeedbacks) {
+            for (const wf of q.wrongFeedbacks) {
+              if (wf.length > maxAnswer.length) maxAnswer = wf;
+            }
+          }
+
+          // Фидбэки (только правильные — отображаются в поле feedbackText)
+          if (q.feedbacks) {
+            for (const fb of q.feedbacks) {
+              if (fb.length > maxFeedback.length) maxFeedback = fb;
+            }
+          }
+        }
+      }
+
+      // Fallbacks
+      // ✅ CHANGE: Short fallbacks to ensure large font on error/empty
+      if (maxQuestion.length === 0) maxQuestion = 'Q?';
+      if (maxAnswer.length === 0) maxAnswer = 'A';
+      if (maxFeedback.length === 0) maxFeedback = 'OK';
+
+      logger.log('QUIZ', `📏 Data-Driven Key Size: Level ${levelNumber} | Q:${maxQuestion.length} A:${maxAnswer.length} F:${maxFeedback.length}`);
+
+      return {
+        question: maxQuestion,
+        answer: maxAnswer,
+        feedback: maxFeedback
+      };
+
+    } catch (e) {
+      logger.error('QUIZ', `Failed to scan mini quizzes for level ${levelNumber}`, e);
+      return {
+        question: 'Error?',
+        answer: 'Err',
+        feedback: 'Error'
+      };
+    }
   }
 }
 

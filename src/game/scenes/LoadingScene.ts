@@ -166,7 +166,7 @@ export default class LoadingScene extends BaseScene implements IProgressReporter
       justify-content: center;
       align-items: center;
       z-index: 9999;
-      font-family: 'Nunito', sans-serif;
+      font-family: sans-serif;
     `;
 
     // Правила игры (ВЫШЕ заголовка)

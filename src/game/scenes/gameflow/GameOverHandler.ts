@@ -199,6 +199,10 @@ export class GameOverHandler {
                     percentage,
                     gameOverType === GameOverType.WIN_GAME ? 'game' : 'level'
                 );
+            } else {
+                // ✅ НОВОЕ: Получаем сообщение для Game Over (поражение)
+                const currentLevel = this.deps.levelManager.getCurrentLevel();
+                feedbackText = await this.deps.quizManager.getGameOverMessage(currentLevel);
             }
 
             if (gameOverType === GameOverType.WIN_GAME) {

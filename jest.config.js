@@ -27,7 +27,8 @@ export default {
       VITE_USE_QUESTION_BUBBLE: 'true',
       VITE_SOUND_ENABLED: 'true',
       VITE_SOUND_VOLUME: '0.5',
-      VITE_DEBUG_UI_ENABLED: 'false'
+      VITE_DEBUG_UI_ENABLED: 'false',
+      DEV: true
     }
   },
   collectCoverageFrom: [
@@ -48,6 +49,10 @@ export default {
       }
     }]
   },
+  // ✅ Mock import.meta.env.DEV in Logger.ts
+  transformIgnorePatterns: [
+    'node_modules/(?!(phaser|vite-plugin-*)|)'
+  ],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   testTimeout: 10000
 };

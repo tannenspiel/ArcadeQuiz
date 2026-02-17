@@ -51,7 +51,7 @@ export class EffectsManager {
 
         const text = this.deps.scene.add.text(roundedX, roundedY, message, {
             fontSize: `${24}px`,
-            fontFamily: 'Nunito',
+            fontFamily: 'sans-serif',
             fontStyle: 'bold',
             color: `#${color.toString(16).padStart(6, '0')}`,
             stroke: '#000000',

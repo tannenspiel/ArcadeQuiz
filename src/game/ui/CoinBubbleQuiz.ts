@@ -21,10 +21,12 @@
 
 import Phaser from 'phaser';
 import { logger } from '../../utils/Logger';
+import { DEBUG_MODAL_BOUNDS } from '../../config/debugConfig';
 import { EVENTS, BASE_SCALE, KEYS, DEPTHS } from '../../constants/gameConstants';
 import { BUTTON_HOVER_GOLD, BUTTON_PRESSED_GOLD } from '../../constants/textStyles';
-import { QuizStatements } from '../../systems/QuizManager';
+import { QuizStatements } from '../systems/QuizManager';
 import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
+import { LONGEST_TEXTS_COIN_QUIZZES } from '../../constants/textLengths';
 
 // ==================== КОНСТАНТЫ ДЛЯ 9-SLICE БАББЛОВ ====================
 // ui_coin_bubble использует frameWidth=10, frameHeight=10
@@ -32,8 +34,8 @@ import { snapToGrid, snapToGridDouble } from './ModalPositioningHelper';
 const BUBBLE_TILE_SIZE = 10 * BASE_SCALE; // 40px - размер одной нарезки
 
 // Минимальный размер баббла без пересечения нарезок
-// 3 нарезки = угол + минимум центра + угол
-const MIN_BUBBLE_SIZE = BUBBLE_TILE_SIZE * 3; // 120px - минимум для корректного отображения
+// 2 нарезки = верх + низ (80px), середина может быть схлопнута
+const MIN_BUBBLE_SIZE = BUBBLE_TILE_SIZE * 2; // 80px - минимум (было 120px)
 import {
   DEFAULT_FONT_FAMILY,
   COIN_BUTTON_FONT_SIZE_MULTIPLIER,
@@ -41,11 +43,9 @@ import {
   MIN_FONT_SIZE_BUTTON
 } from '../../constants/textStyles';
 import {
-  calculateBaseFontSize,
-  calculateUnifiedBaseFontSize,
   getButtonPadding,
-  getFontSizeMultiplier,
-  getCoinBubbleFontMultiplier
+  calculateTieredFontSizeSimple,
+  CHAR_WIDTH_RATIO_SANS
 } from '../utils/FontSizeCalculator';
 import { calculateModalSize } from './ModalSizeCalculator';
 import { NineSliceBackground } from './NineSliceBackground';
@@ -56,10 +56,7 @@ export interface CoinBubbleQuizConfig {
   onWrong: () => void;
 }
 
-interface QuizStatements {
-  true: string;
-  false: string;
-}
+
 
 /**
  * CoinBubbleQuiz - Two button-bubbles for coin quiz (no modal window)
@@ -110,6 +107,10 @@ export class CoinBubbleQuiz {
     });
   }
 
+  /**
+   * Create the UI - two button-bubbles with statements
+   * ⚠️ CRITICAL: All elements use setScrollFactor(0) for Screen Space
+   */
   /**
    * Create the UI - two button-bubbles with statements
    * ⚠️ CRITICAL: All elements use setScrollFactor(0) for Screen Space
@@ -223,54 +224,40 @@ export class CoinBubbleQuiz {
       const bubble2X = centerX;
       const bubble2Y = centerY + bubbleBtnHeight / 2 + gap / 2;
 
-      // ✅ УНИФИЦИРОВАННЫЙ РАСЧЁТ РАЗМЕРА ШРИФТА с модальными окнами
-      // Используем calculateUnifiedBaseFontSize как в KeyQuestionModal, PortalModal, GameOverModal
-      const baseFontSize = calculateUnifiedBaseFontSize(this.scene, 1); // level=1 для унификации
-
       // ✅ АДАПТИВНЫЕ ОТСТУПЫ: используем getButtonPadding для вычисления отступов
       // Базовые отступы в пикселях исходной графики масштабируются через BASE_SCALE
       const bubblePadding = getButtonPadding(bubbleBtnWidth, bubbleBtnHeight);
       const bubbleAvailableWidth = bubblePadding.availableWidth;
       const bubbleAvailableHeight = bubblePadding.availableHeight;
 
-      // ✅ Используем самый длинный текст для расчёта fontSize (гарантирует влезание обоих бабблов)
-      const bubbleFontSizeRaw = calculateBaseFontSize(
-        this.scene,
-        bubbleAvailableWidth,
-        bubbleAvailableHeight,
-        longestText,  // ✅ Самый длинный текст
-        baseFontSize,
-        3 // maxLines
-      );
+      // ✅ РАСЧЕТ ШРИФТА НА ОСНОВЕ ДАННЫХ (Data-Driven Sizing)
+      // Получаем самый длинный текст в JSON текущего уровня
+      // Это позволяет использовать крупный шрифт, если в JSON только короткие тексты (тесты)
+      // Асинхронно получаем текст, затем создаем UI
+      const quizManager = this.scene.data.get('quizManager');
+      const currentLevel = this.scene.data.get('currentLevel') as number | undefined || 1;
 
-      // ✅ АДАПТИВНЫЙ МНОЖИТЕЛЬ: используем getCoinBubbleFontMultiplier вместо фиксированного 1.3
-      const screenAR = canvasWidth / canvasHeight;
-      const adaptiveMultiplier = getCoinBubbleFontMultiplier(screenAR);
-      const fontSize = bubbleFontSizeRaw * adaptiveMultiplier;
+      let longestTextForCalc = LONGEST_TEXTS_COIN_QUIZZES.text; // Default fallback
 
-      logger.log('COIN_BUBBLE_QUIZ', `Unified sizing: baseFont=${baseFontSize.toFixed(2)}px, bubbleRaw=${bubbleFontSizeRaw.toFixed(2)}px, final=${fontSize.toFixed(2)}px (×${adaptiveMultiplier.toFixed(2)})`);
-      logger.log('COIN_BUBBLE_QUIZ', `Font calculation details:`, {
-        bubblePaddingX: bubblePadding.paddingX.toFixed(1),
-        bubblePaddingY: bubblePadding.paddingY.toFixed(1),
-        bubbleAvailableWidth: bubbleAvailableWidth.toFixed(0),
-        bubbleAvailableHeight: bubbleAvailableHeight.toFixed(0),
-        finalFontSize: fontSize.toFixed(2),
-        bubble1Text: bubble1Text.substring(0, 30) + '...',
-        bubble2Text: bubble2Text.substring(0, 30) + '...',
-        usedForCalc: longestText.substring(0, 30) + '...' // ✅ Показываем, какой текст использовался
-      });
+      if (quizManager && typeof quizManager.getLongestCoinStatement === 'function') {
+        // ⚠️ ВАЖНО: Мы не можем ждать промис в конструкторе/createUI синхронно.
+        // Но так как CoinBubbleQuiz создается по событию, мы можем запустить асинхронный процесс
+        // и обновить UI, когда данные будут готовы.
+        // В данном случае, проще всего получить данные и ПОТОМ рассчитать шрифт.
 
-      // ✅ Create interactive bubble buttons using simple containers
-      this.bubble1Bg = this.createBubbleButton(bubble1X, bubble1Y, bubbleBtnWidth, bubbleBtnHeight, bubble1Text, fontSize, 0);
-      this.bubble2Bg = this.createBubbleButton(bubble2X, bubble2Y, bubbleBtnWidth, bubbleBtnHeight, bubble2Text, fontSize, 1);
-
-      logger.log('COIN_BUBBLE_QUIZ', `UI created`, {
-        bubble1: { x: bubble1X, y: bubble1Y },
-        bubble2: { x: bubble2X, y: bubble2Y }
-      });
-
-      // ✅ Mark initialization as complete
-      this.isInitializing = false;
+        quizManager.getLongestCoinStatement(currentLevel).then((longest: string) => {
+          console.log(`🪙 CoinBubbleQuiz: Got longest text "${longest}" (${longest.length} chars)`);
+          this.applyFontSize(longest, bubbleAvailableWidth, bubbleAvailableHeight, bubble1X, bubble1Y, bubble2X, bubble2Y, bubbleBtnWidth, bubbleBtnHeight, bubble1Text, bubble2Text);
+        }).catch((e: any) => {
+          console.error('Failed to get longest coin statement', e);
+          // Fallback to SHORT string to show error visually (Large Font)
+          this.applyFontSize('Error', bubbleAvailableWidth, bubbleAvailableHeight, bubble1X, bubble1Y, bubble2X, bubble2Y, bubbleBtnWidth, bubbleBtnHeight, bubble1Text, bubble2Text);
+        });
+      } else {
+        console.warn('🪙 CoinBubbleQuiz: QuizManager not found or method missing, using short fallback');
+        // Fallback if method not found - use SHORT to indicate issue
+        this.applyFontSize('Error', bubbleAvailableWidth, bubbleAvailableHeight, bubble1X, bubble1Y, bubble2X, bubble2Y, bubbleBtnWidth, bubbleBtnHeight, bubble1Text, bubble2Text);
+      }
     } catch (error) {
       // ✅ Enhanced error logging
       const errorDetails = {
@@ -284,6 +271,126 @@ export class CoinBubbleQuiz {
       this.isInitializing = false;
       this.destroy(); // Clean up on error
     }
+  }
+
+  private applyFontSize(
+    longestText: string,
+    bubbleAvailableWidth: number,
+    bubbleAvailableHeight: number,
+    bubble1X: number,
+    bubble1Y: number,
+    bubble2X: number,
+    bubble2Y: number,
+    bubbleBtnWidth: number,
+    bubbleBtnHeight: number,
+    bubble1Text: string,
+    bubble2Text: string
+  ): void {
+    // ✅ Вычитаем 80px (ширина монетки + отступ), так как текст сдвинут
+    const COIN_OFFSET_SPACE = 80;
+    const textAvailableWidthForCalc = bubbleAvailableWidth - COIN_OFFSET_SPACE;
+
+    // ✅ Пересчитываем в НАТИВНЫЕ координаты (компенсация setScale(invZoom))
+    const cam = this.scene.cameras.main;
+    const invZoom = 1 / cam.zoom;
+    const nativeTextWidth = textAvailableWidthForCalc / invZoom;
+    const nativeTextHeight = bubbleAvailableHeight / invZoom;
+
+    const fontSize = calculateTieredFontSizeSimple(
+      nativeTextWidth,
+      nativeTextHeight,
+      longestText,
+      CHAR_WIDTH_RATIO_SANS
+    );
+
+    const bubblePadding = getButtonPadding(bubbleBtnWidth, bubbleBtnHeight);
+
+    logger.log('COIN_BUBBLE_QUIZ', `Высото-зависимый расчёт: fontSize=${fontSize.toFixed(1)}px, native=${nativeTextWidth.toFixed(0)}×${nativeTextHeight.toFixed(0)}, textLen=${longestText.length}`);
+    logger.log('COIN_BUBBLE_QUIZ', `Font calculation details:`, {
+      bubblePaddingX: bubblePadding.paddingX.toFixed(1),
+      bubblePaddingY: bubblePadding.paddingY.toFixed(1),
+      bubbleAvailableWidth: bubbleAvailableWidth.toFixed(0),
+      textAvailableWidth: textAvailableWidthForCalc.toFixed(0),
+      bubbleAvailableHeight: bubbleAvailableHeight.toFixed(0),
+      nativeWidth: nativeTextWidth.toFixed(0),
+      nativeHeight: nativeTextHeight.toFixed(0),
+      finalFontSize: fontSize.toFixed(1),
+      bubble1Text: bubble1Text.substring(0, 30) + '...',
+      bubble2Text: bubble2Text.substring(0, 30) + '...',
+      usedForCalc: longestText.substring(0, 30) + '...'
+    });
+
+    // ✅ Create interactive bubble buttons using simple containers
+    this.bubble1Bg = this.createBubbleButton(bubble1X, bubble1Y, bubbleBtnWidth, bubbleBtnHeight, bubble1Text, fontSize, 0);
+    this.bubble2Bg = this.createBubbleButton(bubble2X, bubble2Y, bubbleBtnWidth, bubbleBtnHeight, bubble2Text, fontSize, 1);
+
+    // ✅ DEBUG: Draw bounds if debug mode is enabled
+    if (DEBUG_MODAL_BOUNDS) {
+      this.drawDebugBounds(
+        bubble1X, bubble1Y,
+        bubble2X, bubble2Y,
+        bubbleBtnWidth, bubbleBtnHeight,
+        COIN_OFFSET_SPACE
+      );
+    }
+
+    logger.log('COIN_BUBBLE_QUIZ', `UI created`, {
+      bubble1: { x: bubble1X, y: bubble1Y },
+      bubble2: { x: bubble2X, y: bubble2Y }
+    });
+
+    // ✅ Mark initialization as complete
+    this.isInitializing = false;
+  }
+  /**
+   * Draw debug rectangles for bubbles and text areas
+   */
+  private drawDebugBounds(
+    b1X: number, b1Y: number,
+    b2X: number, b2Y: number,
+    width: number, height: number,
+    coinOffset: number
+  ): void {
+    // Only draw if we are in dev mode (simplistic check, or just draw as requested)
+    const debugGraphics = this.scene.add.graphics();
+    debugGraphics.setDepth(DEPTHS.SCREEN.MODAL_TEXT + 100);
+    debugGraphics.setScrollFactor(0);
+
+    // Style 1: Bubble Bounds (Green)
+    debugGraphics.lineStyle(2, 0x00ff00, 0.8);
+    debugGraphics.strokeRect(b1X - width / 2, b1Y - height / 2, width, height);
+    debugGraphics.strokeRect(b2X - width / 2, b2Y - height / 2, width, height);
+
+    // Style 2: Text Area Bounds (Red)
+    // Calculate the actual "safe" text area used for calc
+    const padding = getButtonPadding(width, height);
+    const safeWidth = padding.availableWidth - coinOffset;
+    const safeHeight = padding.availableHeight;
+
+    // Text is positioned at textX relative to center.
+    // In createBubbleButton: textX = Math.round(width * 0.05);
+    const textX = Math.round(width * 0.05);
+
+    debugGraphics.lineStyle(2, 0xff0000, 0.8);
+
+    // Bubble 1 Text Area
+    debugGraphics.strokeRect(
+      b1X + textX - safeWidth / 2,
+      b1Y - safeHeight / 2,
+      safeWidth,
+      safeHeight
+    );
+
+    // Bubble 2 Text Area
+    debugGraphics.strokeRect(
+      b2X + textX - safeWidth / 2,
+      b2Y - safeHeight / 2,
+      safeWidth,
+      safeHeight
+    );
+
+    // Store for cleanup
+    (this as any).debugGraphics = debugGraphics;
   }
 
   /**
@@ -547,6 +654,11 @@ export class CoinBubbleQuiz {
   public destroy(): void {
     logger.log('COIN_BUBBLE_QUIZ', `Destroying CoinBubbleQuiz`);
 
+    // ✅ Clean up debug graphics
+    if ((this as any).debugGraphics) {
+      ((this as any).debugGraphics as Phaser.GameObjects.Graphics).destroy();
+    }
+
     // Destroy containers (includes all children: background, coin sprite, text)
     if (this.bubble1Bg) {
       this.bubble1Bg.destroy();
@@ -562,10 +674,7 @@ export class CoinBubbleQuiz {
       CoinBubbleQuiz.activeQuiz = null;
     }
 
-    // ✅ Clear static guard if this is the active quiz
-    if (CoinBubbleQuiz.activeQuiz === this) {
-      CoinBubbleQuiz.activeQuiz = null;
-    }
+
 
     this.isInitializing = false;
   }

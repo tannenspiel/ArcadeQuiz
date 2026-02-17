@@ -16,32 +16,32 @@
 
 // Helper для безопасного доступа к import.meta.env (работает и в Jest)
 function getEnv(key: string, defaultValue: string = ''): string {
-  // @ts-ignore - import.meta не существует в Jest
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore - import.meta.env не существует в типах для Jest
-    return import.meta.env[key] || defaultValue;
-  }
-  return defaultValue;
+    // @ts-ignore - import.meta не существует в Jest
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore - import.meta.env не существует в типах для Jest
+        return import.meta.env[key] || defaultValue;
+    }
+    return defaultValue;
 }
 
 // Проверка на production mode - в продакшене все debug фичи отключены
 function isProductionMode(): boolean {
-  // @ts-ignore - import.meta не существует в Jest
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore - import.meta.env не существует в типах для Jest
-    return import.meta.env.MODE === 'production';
-  }
-  return false;
+    // @ts-ignore - import.meta не существует в Jest
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore - import.meta.env не существует в типах для Jest
+        return import.meta.env.MODE === 'production';
+    }
+    return false;
 }
 
 // Helper для безопасного доступа ко всем env переменным
 function getAllEnvKeys(): string[] {
-  // @ts-ignore - import.meta не существует в Jest
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore - import.meta.env не существует в типах для Jest
-    return Object.keys(import.meta.env).filter(k => k.startsWith('ARCADE_LOG_') || k.startsWith('VITE_'));
-  }
-  return [];
+    // @ts-ignore - import.meta не существует в Jest
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore - import.meta.env не существует в типах для Jest
+        return Object.keys(import.meta.env).filter(k => k.startsWith('ARCADE_LOG_') || k.startsWith('VITE_'));
+    }
+    return [];
 }
 
 /// Глобальный флаг - включает ВСЁ логирование (опасно много спама!)
@@ -53,15 +53,15 @@ export const DEBUG_ENABLED = DEBUG_ALL || _debugEnabledRaw;
 
 // Debug: выводим значения в консоль для проверки
 if (typeof window !== 'undefined') {
-  (window as any).__DEBUG_FLAGS__ = {
-    ARCADE_LOG_ENABLED: getEnv('ARCADE_LOG_ENABLED'),
-    ARCADE_LOG_SCENE_INIT: getEnv('ARCADE_LOG_SCENE_INIT'),
-    ARCADE_LOG_UI: getEnv('ARCADE_LOG_UI'),
-    VITE_TEST_VALUE: getEnv('VITE_TEST_VALUE'),
-    ALL_ENV_KEYS: getAllEnvKeys(),
-    DEBUG_ENABLED: DEBUG_ENABLED,
-  };
-  console.log('[debugConfig] Loaded flags:', (window as any).__DEBUG_FLAGS__);
+    (window as any).__DEBUG_FLAGS__ = {
+        ARCADE_LOG_ENABLED: getEnv('ARCADE_LOG_ENABLED'),
+        ARCADE_LOG_SCENE_INIT: getEnv('ARCADE_LOG_SCENE_INIT'),
+        ARCADE_LOG_UI: getEnv('ARCADE_LOG_UI'),
+        VITE_TEST_VALUE: getEnv('VITE_TEST_VALUE'),
+        ALL_ENV_KEYS: getAllEnvKeys(),
+        DEBUG_ENABLED: DEBUG_ENABLED,
+    };
+    console.log('[debugConfig] Loaded flags:', (window as any).__DEBUG_FLAGS__);
 }
 
 // ============================================
@@ -107,16 +107,16 @@ const _VITE_DISABLE_COLLISION_LOGS = _VITE_DISABLE_RAW === 'false';
 export const DEBUG_COLLISION = _DEBUG_ALL || _ARCADE_LOG_COLLISION || _VITE_DISABLE_COLLISION_LOGS;
 
 if (typeof window !== 'undefined') {
-  (window as any).__DEBUG_COLLISION_DEBUG__ = {
-    DEBUG_COLLISION,
-    _DEBUG_ALL,
-    _ARCADE_LOG_COLLISION,
-    _VITE_DISABLE_COLLISION_LOGS,
-    _VITE_DISABLE_RAW,
-    ARCADE_LOG_COLLISION_raw: getEnv('ARCADE_LOG_COLLISION'),
-    VITE_DISABLE_COLLISION_LOGS_raw: getEnv('VITE_DISABLE_COLLISION_LOGS'),
-    VITE_DISABLE_CLEANED: _VITE_DISABLE_RAW
-  };
+    (window as any).__DEBUG_COLLISION_DEBUG__ = {
+        DEBUG_COLLISION,
+        _DEBUG_ALL,
+        _ARCADE_LOG_COLLISION,
+        _VITE_DISABLE_COLLISION_LOGS,
+        _VITE_DISABLE_RAW,
+        ARCADE_LOG_COLLISION_raw: getEnv('ARCADE_LOG_COLLISION'),
+        VITE_DISABLE_COLLISION_LOGS_raw: getEnv('VITE_DISABLE_COLLISION_LOGS'),
+        VITE_DISABLE_CLEANED: _VITE_DISABLE_RAW
+    };
 }
 
 /// Логи анимаций (AnimationSync)
@@ -182,6 +182,12 @@ export const DEBUG_VISUAL_GRID_ENABLED = !_IS_PRODUCTION && getEnv('ARCADE_LOG_V
 /// ОСТОРОЖНО: Много спама при каждом обновлении сетки!
 /// ⚠️ ВСЕГДА отключен в production
 export const DEBUG_SPAWN_GRID_ENABLED = !_IS_PRODUCTION && getEnv('ARCADE_LOG_SPAWN_GRID_ENABLED') === 'true';
+
+/// Отладочные рамки блоков модальных окон (KeyQuestionModal, PortalModal, CoinBubbleQuiz)
+/// Показывает цветные прямоугольники вокруг каждого блока и текстового поля
+/// ⚠️ ВСЕГДА отключен в production
+export const DEBUG_MODAL_BOUNDS = !_IS_PRODUCTION && getEnv('VITE_DEBUG_MODAL_BOUNDS') === 'true';
+
 export const DEBUG_BUTTON_EVENTS = getEnv('VITE_DEBUG_BUTTON_EVENTS') === 'true';
 
 // ============================================

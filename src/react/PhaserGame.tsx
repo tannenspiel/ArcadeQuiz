@@ -460,7 +460,7 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                         maxWidth: '400px',
                         width: '90%',
                         boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
-                        fontFamily: 'Nunito, sans-serif'
+                        fontFamily: 'sans-serif',
                     }}
                 >
                     <div style={{ textAlign: 'center' }}>
@@ -497,7 +497,7 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
-                                fontFamily: 'Nunito, sans-serif',
+                                fontFamily: 'sans-serif',
                                 touchAction: 'manipulation'
                             }}
                             onMouseEnter={(e) => {

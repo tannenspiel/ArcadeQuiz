@@ -972,7 +972,7 @@ export abstract class AbstractPortal {
     }
 
     // ✅ Удаляем слушатель событий
-    EventBus.off('ORACLE_ACTIVATED', this.onOracleActivated, this);
+    EventBus.off(EVENTS.ORACLE_ACTIVATED, this.onOracleActivated, this);
   }
   /**
    * Добавить связанное физическое тело

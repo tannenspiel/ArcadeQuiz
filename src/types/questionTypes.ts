@@ -48,6 +48,7 @@ export interface WinMessages {
   win1: string[]; // Сообщения при завершении с 1 жизнью
   win2: string[]; // Сообщения при завершении с 2 жизнями
   win3: string[]; // Сообщения при завершении с 3 жизнями (идеальный результат)
+  gameover?: string[]; // Сообщения при проигрыше (0 жизней)
 }
 
 /**
@@ -58,9 +59,8 @@ export interface LevelQuestionsData {
   gameWinMessage?: WinMessages; // ❌ УБРАНО: теперь в feedbacks.json (для обратной совместимости опционально)
   levelWinMessage: WinMessages; // Фидбэк прохождения уровня (LEVEL COMPLETE)
   miniQuizzes: QuestionData[]; // Вопросы для мини-квизов (ключи)
-  globalQuizzes?: QuestionData[]; // Массив глобальных вопросов для порталов (новое)
-  globalQuestion: StandardQuestion; // Глобальный вопрос для порталов (для обратной совместимости)
-  globalQuestionWithImage?: QuestionWithImage; // Опциональный глобальный вопрос с изображением (для обратной совместимости)
+  globalQuizzes?: QuestionData[]; // Массив глобальных вопросов для порталов
+  globalQuizzesWithImage?: QuestionWithImage[]; // Массив глобальных вопросов с изображением для порталов
 }
 
 /**
