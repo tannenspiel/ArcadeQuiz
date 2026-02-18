@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "Top-down arcade puzzle game with quizzes",
   "type": "module",
-  "scripts": {
+"scripts": {
     "dev": "vite",
     "dev:ai": "vite --no-open",
     "dev:log": "vite > documentation/temp_docs/LOGS.log 2>&1",
-    "dev:clean": "npm run dev:stop ; npm run dev:ai",
-    "dev:stop": "powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force } -ErrorAction SilentlyContinue\"",
+    "dev:clean": "npm run dev:stop && npm run dev:ai",
+    
+    
+	"dev:stop": "powershell -Command \"$ErrorActionPreference='SilentlyContinue'; Get-NetTCPConnection -LocalPort 3000 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }; Get-Process chrome -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*chrome-debug*' } | Stop-Process -Force; exit 0\"",
+	"dev:debug": "npm run dev:stop && powershell -Command \"Start-Process 'chrome.exe' -ArgumentList '--remote-debugging-port=9222', '--user-data-dir=$PWD/.temp/chrome-debug', 'http://localhost:3000'\" && vite",
+	
     "analyze-texts": "node --loader ts-node/esm scripts/analyze-texts.ts",
     "cache:version": "node scripts/generate-cache-version.js",
     "prebuild": "npm run analyze-texts && npm run cache:version",

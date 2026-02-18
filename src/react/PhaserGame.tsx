@@ -55,12 +55,6 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
             width: gameSize.width,
             height: gameSize.height,
             backgroundColor: '#000000', // ✅ Черный фон для совпадения с LoadingScene
-            fps: {
-                // Ограничиваем до 60 FPS для стабильности
-                // На ПК с 144Hz мониторами может рендерить больше, чем нужно
-                target: 60,
-                forceSetTimeOut: true
-            },
             physics: {
                 default: 'arcade',
                 arcade: {
@@ -85,17 +79,13 @@ const PhaserGame = forwardRef<IPhaserGameRef, {}>((props, ref) => {
                 resizeInterval: 100
             },
             scene: [LoadingScene, MainScene],
-            // ✅ ОТКЛЮЧАЕМ логи Phaser в production для чистой консоли
             fps: {
                 min: 30,
                 target: 60,
-                forceSetTimeOut: true, // ✅ Устраняет [Violation] 'setTimeout' handler took <N>ms
+                forceSetTimeOut: true,
                 smoothStep: true,
-                // ✅ Отключаем warnings о долгих обработчиках
-                poll: false // Отключаем polling (уменьшает setTimeout calls)
+                poll: false
             },
-            // ✅ ОТКЛЮЧАЕМ warnings о долгих setTimeout
-            // Добавляем min/max FPS для отключения логирования
             render: {
                 antialias: false,
                 pixelArt: true, // ✅ Пиксельная графика
